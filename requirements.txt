@@ -1,3 +1,4 @@
 gradio
 cohere
 pillow
+requests

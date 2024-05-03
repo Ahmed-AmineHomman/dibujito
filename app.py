@@ -1,20 +1,18 @@
-import requests
+from io import BytesIO
+from os import environ
 
 import gradio as gr
-from cohere import Client, ChatMessage
+import requests
 from PIL import Image
-from os import environ
-from io import BytesIO
+from cohere import Client, ChatMessage
 
-APP_NAME = "Ijeomman Diffusion"
+APP_NAME = "Dibujito"
 APP_DESCRIPTION = """
-Une interface web permettant de générer toutes les images imaginables, à utiliser en famille !
-Commence par décrire ce que tu souhaites, et l'application fera le reste.
+A simple web app allowing to turn your creative ideas into images. Just write what you want to draw and the app will take care of the rest.
 
-Quelques conseils:
-
-- **Ecris en anglais**: les modèles ne comprennent pas d'autres langues :-(,
-- Fournis des détails : plus tu donneras des détails sur l'image que tu as en tête, meilleur sera le résultat.
+Some tips:
+- **Use details**: the more details you give the AIs, the better they will manage to generate the image that you have in mind.
+- **Be verbose**: your description will be optimized by an LLM that will turn it into a prompt optimized for SD1.5. So do not bother in prompt optimization: juste write what you think.
 """
 KEYS = {"cohere": environ.get("COHERE_API_KEY"), "hf": environ.get("HF_API_KEY")}
 SYSTEM_PROMPT = """
