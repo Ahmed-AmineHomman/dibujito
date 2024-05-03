@@ -16,7 +16,8 @@ Some tips:
 """
 KEYS = {"cohere": environ.get("COHERE_API_KEY"), "hf": environ.get("HF_API_KEY")}
 SYSTEM_PROMPT = """
-As a professional artist and photographer, reformulate the provided verbose image description into one, potentially very long, sentence formed by comma-separated powerful keywords.
+As a professional artist and photographer, reformulate the provided verbose image description into one, potentially very long, sentence.
+Use powerful keywords rather than phrases.
 Organize your prompt according to the following architecture:
 
 [subject][medium][style][artists][resolution][additional details].
@@ -73,9 +74,11 @@ def optimize(prompt: str) -> str:
 def imagine(prompt: str) -> Image:
     """Generates an image corresponding to the provided prompt."""
     headers = {"Authorization": f"Bearer {KEYS.get('hf')}"}
-    url = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+    url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
     payload = {"inputs": prompt}
     response = requests.post(url, headers=headers, json=payload)
+    if response.status_code != 200:
+        raise Exception(response.text)
     return Image.open(BytesIO(response.content))
 
 
