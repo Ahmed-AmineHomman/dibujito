@@ -87,13 +87,13 @@ def generate(prompt: str) -> Image:
     try:
         optimized_prompt = optimize(prompt)
     except Exception as error:
-        gr.Error(f"Error (prompt optim): {error}")
+        raise gr.Error(f"Error (prompt optim): {error}")
 
     # generate image
     try:
         image = imagine(optimized_prompt)
     except Exception as error:
-        gr.Error(f"Error (image gen): {error}")
+        raise gr.Error(f"Error (image gen): {error}")
 
     return image, optimized_prompt
 
@@ -118,4 +118,4 @@ if __name__ == "__main__":
         button.click(fn=generate, inputs=[prompt], outputs=[image, opt_prompt])
 
     # run app
-    app.launch(inbrowser=False, share=True)
+    app.launch()
