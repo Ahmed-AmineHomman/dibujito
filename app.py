@@ -1,122 +1,112 @@
-from io import BytesIO
-from os import environ
+import logging
+from argparse import ArgumentParser, Namespace
 
 import gradio as gr
-import requests
 from PIL import Image
-from cohere import Client, ChatMessage
+
+from api import configure_logger
+from api.diffuser import Diffuser
 
 APP_NAME = "Dibujito"
 APP_DESCRIPTION = """
-A simple web app allowing to turn your creative ideas into images. Just write what you want to draw and the app will take care of the rest.
+A simple web app allowing to turn your creative ideas into images.
+Just write what you want to draw and the app will take care of the rest.
+"""
+PROMPT_DESCRIPTION = """
+Write anything you would like the model to draw.
+Your description will be automatically improved by the LLM powering the app.
 
 Some tips:
-- **Use details**: the more details you give the AIs, the better they will manage to generate the image that you have in mind.
-- **Be verbose**: your description will be optimized by an LLM that will turn it into a prompt optimized for SD1.5. So do not bother in prompt optimization: juste write what you think.
+-   **Use details**: the more details you give to the AI, the better it will be at creating an image corresponding to what you have in mind.
+-   **Be verbose**: don't bother with prompt engineering, just write what you want for your image to display.
+    The LLM will take care of converting it into an optimal prompt.
 """
-KEYS = {"cohere": environ.get("COHERE_API_KEY"), "hf": environ.get("HF_API_KEY")}
-SYSTEM_PROMPT = """
-As a professional artist and photographer, reformulate the provided verbose image description into one, potentially very long, sentence.
-Use powerful keywords rather than phrases.
-Organize your prompt according to the following architecture:
 
-[subject][medium][style][artists][resolution][additional details].
-
-- subject: description of the main subject of the image, its pose and its action,
-- medium: material used to make artwork (oil painting, digital art, photography, etc..),
-- style: artistic style (surrealism, impressionism, fantasy, etc..)
-- artists: examples of famous artists of the image style,
-- resolution: how sharp and detailed the image is (sharp, very detailed, etc..),
-- additional details: color palette (pastel, golden hour, etc..), lighting (dramatic, cinematic, etc..), vibe (dystopian, bucolic, etc...).
-
-Here is one example of such prompt:
-
-"a beautiful and powerful mysterious sorceress, smile, sitting on a rock, lightning magic, hat, detailed leather clothing with gemstones, dress, castle background, digital art, hyperrealistic, fantasy, dark art, artstation, highly detailed, sharp focus, sci-fi, dystopian, iridescent gold, studio lighting."
-
-Ensure to return a prompt whose keywords are consistent with the provided description.
-Add keywords that you think enhance the associated image if they are consistent with the provided description.
-Use your prior knowledge to find artists.
-Use very technical terms from professional photography.
-Only return your summarized description.
-"""
-EXAMPLES = [
-    {
-        "input": "A woman waling in an outdoor marketplace on a sunday morning",
-        "output": "A woman, walking through a bustling marketplace, Sunday morning light, oil painting, impressionist style, medium close-up, reminiscent of Renoir and Van Gogh, warm color palette, soft focus, with bright sunlight streaming through, capturing the lively atmosphere.",
-    }
-]
+DIFFUSER: Diffuser
 
 
-def optimize(prompt: str) -> str:
-    """Optimizes the provided prompt for ingestion by a text-to-image model."""
-    # initialize API client
-    client = Client(api_key=KEYS.get("cohere"))
-
-    # build fictitious exchange with examples
-    history = []
-    for example in EXAMPLES:
-        history += [
-            ChatMessage(role="USER", message=example.get("input")),
-            ChatMessage(role="CHATBOT", message=example.get("input")),
-        ]
-
-    # retrieve response
-    response = client.chat(
-        message=prompt,
-        model="command-r-plus",
-        preamble=SYSTEM_PROMPT,
-        chat_history=history,
+def load_parameters() -> Namespace:
+    """Loads the parameters from the environment."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        required=False,
+        help="The Cohere API key. If not provided, its value will be searched in the COHERE_API_KEY environment variable."
     )
+    parser.add_argument(
+        "--logpath",
+        type=str,
+        required=False,
+        help="path to the logfile. If not provided, logs will only be written in the default stream."
+    )
+    parser.add_argument(
+        "--checkpoints-dir",
+        type=str,
+        required=False,
+        help="path to the directory containing the checkpoints."
+    )
+    return parser.parse_args()
 
-    return response.text
 
-
-def imagine(prompt: str) -> Image:
-    """Generates an image corresponding to the provided prompt."""
-    headers = {"Authorization": f"Bearer {KEYS.get('hf')}"}
-    url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-    payload = {"inputs": prompt}
-    response = requests.post(url, headers=headers, json=payload)
-    if response.status_code != 200:
-        raise Exception(response.text)
-    return Image.open(BytesIO(response.content))
-
-
-def generate(prompt: str) -> Image:
+def generate(
+        prompt: str,
+        steps: int,
+        guidance: float,
+        aspect: str,
+) -> Image:
     """Generates the image corresponding to the provided prompt."""
-    # optimize prompt
-    try:
-        optimized_prompt = optimize(prompt)
-    except Exception as error:
-        raise gr.Error(f"Error (prompt optim): {error}")
+    # logging.info(f"optimizing prompt")
+    # try:
+    #     optimized_prompt = optimize(prompt)
+    # except Exception as error:
+    #     message = f"Error (prompt optim): {error}"
+    #     logging.error(message)
+    #     raise gr.Error(message)
+    # logging.info(f"optimized prompt: {optimized_prompt}")
 
-    # generate image
+    logging.info(f"generating image")
     try:
-        image = imagine(optimized_prompt)
+        image = DIFFUSER.imagine(prompt=prompt, steps=steps, guidance=guidance, aspect=aspect)
     except Exception as error:
-        raise gr.Error(f"Error (image gen): {error}")
+        message = f"Error (image gen): {error}"
+        logging.error(message)
+        raise gr.Error(message)
+    logging.info(f"image generated")
 
-    return image, optimized_prompt
+    return image
+
+
+def build_ui() -> gr.Blocks:
+    """Builds the UI."""
+    with gr.Blocks() as app:
+        gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
+        with gr.Accordion(label="Parameters", open=False):
+            with gr.Row():
+                steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
+                guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
+                aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
+        image = gr.Image(label="Image", format="png")
+        with gr.Row():
+            prompt = gr.TextArea(
+                label="Prompt",
+                placeholder="describe whatever you can think of here",
+                scale=4,
+            )
+            button = gr.Button(value="Run", variant="primary", scale=1)
+        button.click(fn=generate, inputs=[prompt, steps, guidance, aspect], outputs=[image])
+    return app
 
 
 if __name__ == "__main__":
-    # define UI
-    with gr.Blocks() as app:
-        gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
-        with gr.Row():
-            image = gr.Image(
-                label="Image", format="png", height=512, width=512, scale=4
-            )
-            with gr.Accordion(label="Additional Details", open=False):
-                opt_prompt = gr.TextArea(label="Optimized prompt")
-        with gr.Row():
-            prompt = gr.TextArea(
-                label="Description",
-                placeholder="décris ce que tu souhaites générer ici...",
-                scale=4,
-            )
-            button = gr.Button(value="Générer", variant="primary", scale=1)
-        button.click(fn=generate, inputs=[prompt], outputs=[image, opt_prompt])
+    parameters = load_parameters()
+    configure_logger(logpath=parameters.logpath if parameters.logpath else None)
 
-    # run app
+    logging.info(f"loading diffuser model")
+    DIFFUSER = Diffuser()
+
+    logging.info(f"building UI")
+    app = build_ui()
+
+    logging.info("running app")
     app.launch()

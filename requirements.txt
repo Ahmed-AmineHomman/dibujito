@@ -2,3 +2,8 @@ gradio
 cohere
 pillow
 requests
+diffusers
+torch
+safetensors
+transformers
+accelerate
