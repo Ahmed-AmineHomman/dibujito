@@ -83,6 +83,7 @@ def load_pipeline(
 
 def generate(
         prompt: str,
+        negative_prompt: str,
         project: str,
         steps: int,
         guidance: float,
@@ -100,7 +101,13 @@ def generate(
 
     logging.info(f"generating image")
     try:
-        image = DIFFUSER.imagine(prompt=optimized_prompt, steps=steps, guidance=guidance, aspect=aspect)
+        image = DIFFUSER.imagine(
+            prompt=optimized_prompt,
+            negative_prompt=negative_prompt,
+            steps=steps,
+            guidance=guidance,
+            aspect=aspect
+        )
     except Exception as error:
         message = f"Error (image gen): {error}"
         logging.error(message)
@@ -126,32 +133,35 @@ def build_ui(
     with gr.Blocks() as app:
         gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
 
-        # parameters
-        with gr.Accordion(label="Parameters", open=False):
-            with gr.Row():
-                steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
-                guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
-                aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
-            with gr.Row():
-                checkpoint = gr.Dropdown(label="Diffuser", choices=models.get("checkpoints"), value=checkpoint,
-                                         multiselect=False)
-                loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True)
-                embeddings = gr.Dropdown(label="Embeddings", choices=models.get("embeddings"), value=[],
-                                         multiselect=True)
-                pipeline_btn = gr.Button(value="Load pipeline", variant="primary")
-
         # user project description
-        project = gr.Text(label="Project", placeholder="describe your project here", interactive=True)
-
-        # generated image
-        image = gr.Image(label="Image", format="png", type="pil")
 
         # prompting section
         with gr.Row():
+            image = gr.Image(label="Image", format="png", type="pil", height=1024, width=1024, scale=2)
+            with gr.Column(scale=1):
+                with gr.Accordion(label="Models", open=False):
+                    checkpoint = gr.Dropdown(label="Diffuser", choices=models.get("checkpoints"), value=checkpoint,
+                                             multiselect=False)
+                    loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True)
+                    embeddings = gr.Dropdown(label="Embeddings", choices=models.get("embeddings"), value=[],
+                                             multiselect=True)
+                    pipeline_btn = gr.Button(value="Load pipeline", variant="secondary")
+                with gr.Accordion(label="Parameters", open=False):
+                    steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
+                    guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
+                    aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
+                with gr.Accordion(label="Prompting", open=True):
+                    negative_prompt = gr.TextArea(
+                        label="Negative prompt",
+                        placeholder="describe what you don't want to draw",
+                        interactive=True
+                    )
+                    project = gr.Text(label="Project", placeholder="describe your project here", interactive=True)
+        with gr.Row():
             prompt = gr.TextArea(
                 label="Prompt",
-                placeholder="describe whatever you can think of here",
-                scale=4,
+                placeholder="describe what you want to draw",
+                scale=2
             )
             generate_btn = gr.Button(value="Run", variant="primary", scale=1)
 
@@ -163,7 +173,7 @@ def build_ui(
         )
         generate_btn.click(
             fn=generate,
-            inputs=[prompt, project, steps, guidance, aspect],
+            inputs=[prompt, negative_prompt, project, steps, guidance, aspect],
             outputs=[image])
     return app
 
