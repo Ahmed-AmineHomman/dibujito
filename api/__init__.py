@@ -3,9 +3,7 @@ import os
 from logging import getLogger
 
 DEFAULT_MODEL_DIR = os.path.join(".", "models")
-DEFAULT_CHECKPOINT_NAME = "dreamshaper.safetensors"
-DEFAULT_DEPOSIT = "Lykon/DreamShaper"
-
+DEFAULT_CHECKPOINT_NAME = "aom3.safetensors"
 
 def configure_logger(logpath: str) -> None:
     """Configures the logger."""
