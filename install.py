@@ -3,7 +3,7 @@ from argparse import ArgumentParser, Namespace
 import os
 import json
 
-from api import configure_logger, DEFAULT_CHECKPOINT_DIR, DEFAULT_EMBEDDINGS_DIR, DEPOSIT_ID
+from api import configure_logger, DEFAULT_CHECKPOINT_DIR, DEFAULT_EMBEDDINGS_DIR, DEFAULT_DEPOSIT
 
 import logging
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         logging.info("model already downloaded")
     else:
         hf_hub_download(
-            repo_id=DEPOSIT_ID,
+            repo_id=DEFAULT_DEPOSIT,
             repo_type="model",
             filename="DreamShaper8_LCM.safetensors",
             local_dir=parameters.checkpoints_dir
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         logging.info("model already downloaded")
     else:
         hf_hub_download(
-            repo_id=DEPOSIT_ID,
+            repo_id=DEFAULT_DEPOSIT,
             repo_type="model",
             filename="BadDream.pt",
             local_dir=parameters.embeddings_dir

@@ -1,5 +1,8 @@
+import json
 import logging
+import os
 from argparse import ArgumentParser, Namespace
+from typing import List
 
 import gradio as gr
 from PIL import Image
@@ -24,6 +27,7 @@ Some tips:
 """
 
 DIFFUSER: Diffuser
+MODEL_DIR: str
 
 
 def load_parameters() -> Namespace:
@@ -39,15 +43,42 @@ def load_parameters() -> Namespace:
         "--logpath",
         type=str,
         required=False,
-        help="path to the logfile. If not provided, logs will only be written in the default stream."
+        help="path to the logfile"
     )
     parser.add_argument(
-        "--checkpoints-dir",
+        "--model-dir",
         type=str,
         required=False,
-        help="path to the directory containing the checkpoints."
+        help="path to the directory containing the model files."
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        required=False,
+        help="name of the checkpoint file to load during app start."
     )
     return parser.parse_args()
+
+
+def load_pipeline(
+        checkpoint: str,
+        lora: List[str],
+        embeddings: List[str],
+) -> None:
+    DIFFUSER = Diffuser(model_dir=MODEL_DIR)
+
+    logging.info(f"loading checkpoint")
+    DIFFUSER.load_checkpoint(checkpoint)
+
+    logging.info("loading loras")
+    for l in lora:
+        DIFFUSER.load_lora(l)
+
+    logging.info("loading embeddings")
+    for e in embeddings:
+        DIFFUSER.load_embeddings(e)
+
+    logging.info("done")
 
 
 def generate(
@@ -79,21 +110,41 @@ def generate(
     return image
 
 
-def build_ui() -> gr.Blocks:
+def build_ui(
+        checkpoint: str
+) -> gr.Blocks:
     """Builds the UI."""
+    # list models
+    models = {}
+    for subtype in ["checkpoints", "loras", "embeddings"]:
+        base_dir = os.path.join(MODEL_DIR, subtype)
+        models[subtype] = [
+            f for f in os.listdir(base_dir) if
+            (os.path.isfile(os.path.join(base_dir, f)) and (f.split(".")[-1] in ["safetensors", "ckpt", "bin", "pt"]))
+        ]
+
     with gr.Blocks() as app:
         gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
 
-        # parameter section
+        # parameters
         with gr.Accordion(label="Parameters", open=False):
             with gr.Row():
                 steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
                 guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
                 aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
+            with gr.Row():
+                checkpoint = gr.Dropdown(label="Diffuser", choices=models.get("checkpoints"), value=checkpoint,
+                                         multiselect=False)
+                loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True)
+                embeddings = gr.Dropdown(label="Embeddings", choices=models.get("embeddings"), value=[],
+                                         multiselect=True)
+                pipeline_btn = gr.Button(value="Load pipeline", variant="primary")
+
+        # user project description
         project = gr.Text(label="Project", placeholder="describe your project here", interactive=True)
 
         # generated image
-        image = gr.Image(label="Image", format="png")
+        image = gr.Image(label="Image", format="png", type="pil")
 
         # prompting section
         with gr.Row():
@@ -102,20 +153,42 @@ def build_ui() -> gr.Blocks:
                 placeholder="describe whatever you can think of here",
                 scale=4,
             )
-            button = gr.Button(value="Run", variant="primary", scale=1)
-        button.click(fn=generate, inputs=[prompt, project, steps, guidance, aspect], outputs=[image])
+            generate_btn = gr.Button(value="Run", variant="primary", scale=1)
+
+        # UI logic
+        pipeline_btn.click(
+            fn=load_pipeline,
+            inputs=[checkpoint, loras, embeddings],
+            outputs=[]
+        )
+        generate_btn.click(
+            fn=generate,
+            inputs=[prompt, project, steps, guidance, aspect],
+            outputs=[image])
     return app
 
 
 if __name__ == "__main__":
     parameters = load_parameters()
-    configure_logger(logpath=parameters.logpath if parameters.logpath else None)
 
-    logging.info(f"loading diffuser model")
-    DIFFUSER = Diffuser()
+    # configure app
+    configure_logger(logpath=parameters.logpath if parameters.logpath else None)
+    if parameters.model_dir:
+        MODEL_DIR = parameters.model_dir
+    else:
+        with open("./config.json", "r") as fh:
+            MODEL_DIR = json.load(fh).get("model-dir")
+
+    logging.info(f"loading diffusion pipeline")
+    DIFFUSER = Diffuser(
+        model_dir=MODEL_DIR,
+        checkpoint=parameters.checkpoint
+    )
 
     logging.info(f"building UI")
-    app = build_ui()
+    app = build_ui(
+        checkpoint=parameters.checkpoint
+    )
 
     logging.info("running app")
     app.launch()

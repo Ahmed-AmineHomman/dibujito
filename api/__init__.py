@@ -2,9 +2,9 @@ import logging
 import os
 from logging import getLogger
 
-DEFAULT_CHECKPOINT_DIR = os.path.join(".", "models", "checkpoints")
-DEFAULT_EMBEDDINGS_DIR = os.path.join(".", "models", "embeddings")
-DEPOSIT_ID = "Lykon/DreamShaper"
+DEFAULT_MODEL_DIR = os.path.join(".", "models")
+DEFAULT_CHECKPOINT_NAME = "dreamshaper.safetensors"
+DEFAULT_DEPOSIT = "Lykon/DreamShaper"
 
 
 def configure_logger(logpath: str) -> None:
@@ -18,5 +18,3 @@ def configure_logger(logpath: str) -> None:
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     logger.addHandler(console_handler)
-
-
