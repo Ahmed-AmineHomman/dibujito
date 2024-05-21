@@ -6,6 +6,7 @@ from PIL import Image
 
 from api import configure_logger
 from api.diffuser import Diffuser
+from api.optimizers import optimize
 
 APP_NAME = "Dibujito"
 APP_DESCRIPTION = """
@@ -51,23 +52,24 @@ def load_parameters() -> Namespace:
 
 def generate(
         prompt: str,
+        project: str,
         steps: int,
         guidance: float,
         aspect: str,
 ) -> Image:
     """Generates the image corresponding to the provided prompt."""
-    # logging.info(f"optimizing prompt")
-    # try:
-    #     optimized_prompt = optimize(prompt)
-    # except Exception as error:
-    #     message = f"Error (prompt optim): {error}"
-    #     logging.error(message)
-    #     raise gr.Error(message)
-    # logging.info(f"optimized prompt: {optimized_prompt}")
+    logging.info(f"optimizing prompt")
+    try:
+        optimized_prompt = optimize(prompt, model="sd1", project=project)
+    except Exception as error:
+        message = f"Error (prompt optim): {error}"
+        logging.error(message)
+        raise gr.Error(message)
+    logging.info(f"optimized prompt: {optimized_prompt}")
 
     logging.info(f"generating image")
     try:
-        image = DIFFUSER.imagine(prompt=prompt, steps=steps, guidance=guidance, aspect=aspect)
+        image = DIFFUSER.imagine(prompt=optimized_prompt, steps=steps, guidance=guidance, aspect=aspect)
     except Exception as error:
         message = f"Error (image gen): {error}"
         logging.error(message)
@@ -81,12 +83,19 @@ def build_ui() -> gr.Blocks:
     """Builds the UI."""
     with gr.Blocks() as app:
         gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
+
+        # parameter section
         with gr.Accordion(label="Parameters", open=False):
             with gr.Row():
                 steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
                 guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
                 aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
+        project = gr.Text(label="Project", placeholder="describe your project here", interactive=True)
+
+        # generated image
         image = gr.Image(label="Image", format="png")
+
+        # prompting section
         with gr.Row():
             prompt = gr.TextArea(
                 label="Prompt",
@@ -94,7 +103,7 @@ def build_ui() -> gr.Blocks:
                 scale=4,
             )
             button = gr.Button(value="Run", variant="primary", scale=1)
-        button.click(fn=generate, inputs=[prompt, steps, guidance, aspect], outputs=[image])
+        button.click(fn=generate, inputs=[prompt, project, steps, guidance, aspect], outputs=[image])
     return app
 
 
