@@ -7,7 +7,7 @@ from typing import List
 import gradio as gr
 from PIL import Image
 
-from api import configure_logger
+from api import configure_logger, configure_api_keys, DEFAULT_MODEL_DIR, DEFAULT_CHECKPOINT_NAME
 from api.diffuser import Diffuser
 from api.optimizers import optimize
 
@@ -27,7 +27,7 @@ Some tips:
 """
 
 DIFFUSER: Diffuser
-MODEL_DIR: str
+CONFIG: dict
 
 
 def load_parameters() -> Namespace:
@@ -46,10 +46,22 @@ def load_parameters() -> Namespace:
         help="path to the logfile"
     )
     parser.add_argument(
-        "--model-dir",
+        "--checkpoint-dir",
         type=str,
         required=False,
-        help="path to the directory containing the model files."
+        help="path to the directory containing the model checkpoints."
+    )
+    parser.add_argument(
+        "--lora-dir",
+        type=str,
+        required=False,
+        help="path to the directory containing the loras."
+    )
+    parser.add_argument(
+        "--embeddings-dir",
+        type=str,
+        required=False,
+        help="path to the directory containing the embeddings."
     )
     parser.add_argument(
         "--checkpoint",
@@ -65,8 +77,6 @@ def load_pipeline(
         lora: List[str],
         embeddings: List[str],
 ) -> None:
-    DIFFUSER = Diffuser(model_dir=MODEL_DIR)
-
     logging.info(f"loading checkpoint")
     DIFFUSER.load_checkpoint(checkpoint)
 
@@ -124,7 +134,7 @@ def build_ui(
     # list models
     models = {}
     for subtype in ["checkpoints", "loras", "embeddings"]:
-        base_dir = os.path.join(MODEL_DIR, subtype)
+        base_dir = CONFIG.get(subtype)
         models[subtype] = [
             f for f in os.listdir(base_dir) if
             (os.path.isfile(os.path.join(base_dir, f)) and (f.split(".")[-1] in ["safetensors", "ckpt", "bin", "pt"]))
@@ -132,8 +142,6 @@ def build_ui(
 
     with gr.Blocks() as app:
         gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
-
-        # user project description
 
         # prompting section
         with gr.Row():
@@ -183,15 +191,36 @@ if __name__ == "__main__":
 
     # configure app
     configure_logger(logpath=parameters.logpath if parameters.logpath else None)
-    if parameters.model_dir:
-        MODEL_DIR = parameters.model_dir
-    else:
-        with open("./config.json", "r") as fh:
-            MODEL_DIR = json.load(fh).get("model-dir")
+    configure_api_keys(api_key=parameters.api_key if parameters.api_key else None)
+
+    # generate default config file if not already existing
+    if not os._exists("./config.json"):
+        logging.info("generating default config file")
+        config = {
+            "checkpoints": os.path.join(DEFAULT_MODEL_DIR, "checkpoints"),
+            "loras": os.path.join(DEFAULT_MODEL_DIR, "loras"),
+            "embeddings": os.path.join(DEFAULT_MODEL_DIR, "embeddings"),
+        }
+        with open("./config.json", "w") as fh:
+            json.dump(obj=config, fp=fh)
+    
+    logging.info("configuring model paths")
+    with open("./config.json", "r") as fh:
+        CONFIG = json.load(fp=fh)
+    if parameters.checkpoint_dir:
+        CONFIG["checkpoints"] = parameters.checkpoint_dir
+    if parameters.checkpoint_dir:
+        CONFIG["loras"] = parameters.lora_dir
+    if parameters.checkpoint_dir:
+        CONFIG["embeddings"] = parameters.embeddings_dir
+    for key in ["checkpoints", "loras", "embeddings"]:
+        logging.info(f"directory for {key}: {config.get(key)}")
 
     logging.info(f"loading diffusion pipeline")
     DIFFUSER = Diffuser(
-        model_dir=MODEL_DIR,
+        checkpoint_dir=CONFIG.get("checkpoints"),
+        lora_dir=CONFIG.get("loras"),
+        embeddings_dir=CONFIG.get("embeddings"),
         checkpoint=parameters.checkpoint
     )
 

@@ -1,12 +1,11 @@
 import logging
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict
+import gc
 
 import torch
 from PIL import Image
 from diffusers import StableDiffusionPipeline
-
-from api import DEFAULT_MODEL_DIR, DEFAULT_CHECKPOINT_NAME
 
 
 class Diffuser:
@@ -16,48 +15,63 @@ class Diffuser:
     It is based on the ``diffusers`` library, and is compatible with any stable-diffusion 1.5 based models.
     """
     pipeline: StableDiffusionPipeline
+    embeddings: List[str] = []
     cuda: bool
 
-    _database_dir: str = DEFAULT_MODEL_DIR
-    _checkpoint_name = DEFAULT_CHECKPOINT_NAME
-    _embeddings: List[str] = []
-    _loras: List[str] = []
+    _paths: Dict[str, str]
 
     def __init__(
             self,
-            model_dir: Optional[str] = None,
+            checkpoint_dir: str,
+            lora_dir: str,
+            embeddings_dir: str,
             checkpoint: Optional[str] = None
     ):
-        if model_dir:
-            self._database_dir = model_dir
+        self._paths = {
+            "checkpoints": checkpoint_dir,
+            "loras": lora_dir,
+            "embeddings": embeddings_dir
+        }
         self.cuda = torch.cuda.is_available()
-        self.load_checkpoint(model=checkpoint)
+        if checkpoint:
+            self.load_checkpoint(filename=checkpoint)
+    
+    def reset(self) -> None:
+        """Resets the pipeline."""
+        del self.pipeline
+        gc.collect()
+        self.pipeline: StableDiffusionPipeline = None
 
-    def load_checkpoint(self, model: Optional[str] = None) -> None:
-        """Reset the diffusion pipeline with the provided checkpoint."""
-        if not model:
-            model = DEFAULT_CHECKPOINT_NAME
-        self._checkpoint_name = model
+    def load_checkpoint(self, filename: str) -> None:
+        """
+        Resets the pipeline with the provided checkpoint.
+
+        **Warning**: loading a new checkpoints will drop all loras & embeddings from the pipeline.
+        """
+        filepath = os.path.join(self._paths.get("checkpoints"), filename)
         params = self._set_pipeline_parameters()
-        self.pipeline = StableDiffusionPipeline.from_single_file(
-            os.path.join(self._database_dir, "checkpoints", model),
-            **params
-        )
+        self.pipeline = StableDiffusionPipeline.from_single_file(filepath, **params)
         if self.cuda:
             self.pipeline = self.pipeline.to("cuda")
             self.pipeline.enable_model_cpu_offload()
 
-    def load_lora(self, model: str) -> None:
-        """Adds the LoRa corresponding to the provided model path to the pipeline."""
-        self._loras.append(model)
+    def load_lora(self, filename: str) -> None:
+        """Adds the LoRa corresponding to the provided filename to the pipeline."""
+        filepath = os.path.join(self._pats.get("loras"), filename)
+        name = filename.split(".")[0]
         self.pipeline.load_lora_weights(
-            os.path.join(self._database_dir, "loras", model),
-            adapter_name=model.split(".")[0]
+            pretrained_model_name_or_path_or_dict=filepath,
+            adapter_name=name
         )
 
     def load_embeddings(self, filename: str) -> None:
-        self._embeddings.append(filename)
-        self.pipeline.load_textual_inversion(os.path.join(self._database_dir, filename))
+        """Adds the textual inversion (=embeddings) corresponding to the provided filename to the pipeline."""
+        filepath = os.path.join(self._database_dir, filename)
+        name = filename.split(".")[0]
+        self.pipeline.load_textual_inversion(
+            pretrained_model_name_or_path=filepath,
+            token=name
+        )
 
     def imagine(
             self,
