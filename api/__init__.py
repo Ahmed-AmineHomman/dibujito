@@ -1,13 +1,14 @@
 import logging
 import os
 from logging import getLogger
-
-from .llm import LLM
-from .diffuser import Diffuser
 from typing import Optional
 
-DEFAULT_MODEL_DIR = os.path.join(".", "models")
+from .config import AppConfig
+from .diffuser import Diffuser
+from .llm import LLM
+
 DEFAULT_CHECKPOINT_NAME = "aom3.safetensors"
+
 
 def configure_logger(logpath: Optional[str] = None) -> None:
     """Configures the logger."""

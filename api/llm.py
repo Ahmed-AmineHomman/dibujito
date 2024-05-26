@@ -1,7 +1,8 @@
 import logging
 import os
+from typing import Optional, List
+
 from cohere import Client, ChatMessage
-from typing import Any, Optional, List, Dict
 
 
 class LLM:

@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 from argparse import ArgumentParser, Namespace
@@ -7,7 +6,7 @@ from typing import List
 import gradio as gr
 from PIL import Image
 
-from api import configure_logger, configure_api_keys, DEFAULT_MODEL_DIR, DEFAULT_CHECKPOINT_NAME
+from api import configure_logger, configure_api_keys, AppConfig
 from api.diffuser import Diffuser
 from api.optimizers import optimize
 
@@ -27,7 +26,7 @@ Some tips:
 """
 
 DIFFUSER: Diffuser
-CONFIG: dict
+CONFIG: AppConfig
 
 
 def load_parameters() -> Namespace:
@@ -46,13 +45,13 @@ def load_parameters() -> Namespace:
         help="path to the logfile"
     )
     parser.add_argument(
-        "--checkpoint-dir",
+        "--checkpoints-dir",
         type=str,
         required=False,
         help="path to the directory containing the model checkpoints."
     )
     parser.add_argument(
-        "--lora-dir",
+        "--loras-dir",
         type=str,
         required=False,
         help="path to the directory containing the loras."
@@ -194,33 +193,27 @@ if __name__ == "__main__":
     configure_api_keys(api_key=parameters.api_key if parameters.api_key else None)
 
     # generate default config file if not already existing
-    if not os._exists("./config.json"):
-        logging.info("generating default config file")
-        config = {
-            "checkpoints": os.path.join(DEFAULT_MODEL_DIR, "checkpoints"),
-            "loras": os.path.join(DEFAULT_MODEL_DIR, "loras"),
-            "embeddings": os.path.join(DEFAULT_MODEL_DIR, "embeddings"),
-        }
-        with open("./config.json", "w") as fh:
-            json.dump(obj=config, fp=fh)
-    
-    logging.info("configuring model paths")
-    with open("./config.json", "r") as fh:
-        CONFIG = json.load(fp=fh)
-    if parameters.checkpoint_dir:
-        CONFIG["checkpoints"] = parameters.checkpoint_dir
-    if parameters.checkpoint_dir:
-        CONFIG["loras"] = parameters.lora_dir
-    if parameters.checkpoint_dir:
-        CONFIG["embeddings"] = parameters.embeddings_dir
-    for key in ["checkpoints", "loras", "embeddings"]:
-        logging.info(f"directory for {key}: {config.get(key)}")
+    logging.info("loading app config")
+    if os.path.exists("./config.json"):
+        CONFIG = AppConfig.load(
+            filepath="config.json",
+            checkpoints=parameters.checkpoints_dir,
+            loras=parameters.loras_dir,
+            embeddings=parameters.embeddings_dir,
+        )
+    else:
+        logging.warning("no config file found -> using defaults paths")
+        CONFIG = AppConfig(
+            checkpoints=parameters.checkpoints_dir,
+            loras=parameters.loras_dir,
+            embeddings=parameters.embeddings_dir,
+        )
 
     logging.info(f"loading diffusion pipeline")
     DIFFUSER = Diffuser(
-        checkpoint_dir=CONFIG.get("checkpoints"),
-        lora_dir=CONFIG.get("loras"),
-        embeddings_dir=CONFIG.get("embeddings"),
+        checkpoint_dir=CONFIG.checkpoints,
+        lora_dir=CONFIG.loras,
+        embeddings_dir=CONFIG.embeddings,
         checkpoint=parameters.checkpoint
     )
 

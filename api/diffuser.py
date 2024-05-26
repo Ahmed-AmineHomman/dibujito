@@ -1,7 +1,7 @@
+import gc
 import logging
 import os
 from typing import Optional, List, Dict
-import gc
 
 import torch
 from PIL import Image
@@ -35,7 +35,7 @@ class Diffuser:
         self.cuda = torch.cuda.is_available()
         if checkpoint:
             self.load_checkpoint(filename=checkpoint)
-    
+
     def reset(self) -> None:
         """Resets the pipeline."""
         del self.pipeline
