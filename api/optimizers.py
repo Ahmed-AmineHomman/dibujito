@@ -57,6 +57,9 @@ RULES = {
 5. Clarity: Ensure the prompt is concise and free from unnecessary complexity.
 """,
 }
+PREFIXES = {
+    "sd1": "masterpiece, best quality, best lighting, best shadows, very-detailed, BREAK"
+}
 
 
 def optimize(
@@ -115,5 +118,9 @@ def optimize(
         message = f"error during API call: {error}"
         logging.error(message)
         raise ValueError(message)
+
+    # append prefix if model is supported
+    if model in PREFIXES.keys():
+        response = f"{PREFIXES.get(model)}, {response}"
 
     return response

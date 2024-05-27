@@ -71,29 +71,6 @@ def load_parameters() -> Namespace:
     return parser.parse_args()
 
 
-def load_pipeline(
-        checkpoint: str,
-        lora: List[str],
-        embeddings: List[str],
-        progress: gr.Progress = gr.Progress()
-) -> None:
-    logging.info(f"loading checkpoint")
-    progress(progress=0, desc="loading checkpoint")
-    DIFFUSER.load_checkpoint(checkpoint)
-
-    logging.info("loading loras")
-    for i, l in enumerate(lora):
-        progress(progress=0.5 + 0.4 * i / len(lora), desc=f"loading lora '{l}'")
-        DIFFUSER.load_lora(l)
-
-    logging.info("loading embeddings")
-    for i, e in enumerate(embeddings):
-        progress(progress=0.9 + 0.1 * i / len(embeddings), desc=f"loading embeddings '{e}'")
-        DIFFUSER.load_embeddings(e)
-
-    logging.info("done")
-
-
 def generate(
         checkpoint: str,
         lora: List[str],
@@ -104,18 +81,33 @@ def generate(
         steps: int,
         guidance: float,
         aspect: str,
+        scheduler: str,
         progress: gr.Progress = gr.Progress()
 ) -> Image:
     """Generates the image corresponding to the provided prompt."""
-    progress(progress=0, desc="loading pipeline")
-    if not DIFFUSER.ready:
-        logging.info(f"loading pipeline")
-        load_pipeline(checkpoint=checkpoint, lora=lora, embeddings=embeddings, progress=progress)
+    progress(progress=0, desc="loading checkpoint")
+    if (not DIFFUSER.ready) or (DIFFUSER.checkpoint != checkpoint):
+        logging.info(f"loading checkpoint")
+        DIFFUSER.load_checkpoint(checkpoint)
     else:
         logging.info("reusing pipeline")
 
+    progress(progress=0, desc="loading loras")
+    for i, l in enumerate(lora):
+        progress(progress=0.2 + 0.1 * i / len(lora), desc=f"loading lora '{l}'")
+        DIFFUSER.load_lora(l)
+
+    logging.info("loading embeddings")
+    for i, e in enumerate(embeddings):
+        progress(progress=0.3 + 0.05 * i / len(embeddings), desc=f"loading embeddings '{e}'")
+        DIFFUSER.load_embeddings(e)
+
+    logging.info(f"defining scheduler")
+    progress(progress=0.35, desc=f"loading scheduler")
+    DIFFUSER.set_scheduler(scheduler)
+
     logging.info(f"optimizing prompt")
-    progress(progress=0.25, desc="optimizing prompt")
+    progress(progress=0.4, desc="optimizing prompt")
     try:
         optimized_prompt = optimize(prompt, model="sd1", project=project)
     except Exception as error:
@@ -125,7 +117,7 @@ def generate(
     logging.info(f"optimized prompt: {optimized_prompt}")
 
     logging.info(f"generating image")
-    progress(progress=0.5, desc="generating image")
+    progress(progress=0.6, desc="generating image")
     try:
         image = DIFFUSER.imagine(
             prompt=optimized_prompt,
@@ -180,6 +172,8 @@ def build_ui(
                     format="png",
                     type="pil",
                     container=True,
+                    height=1024,
+                    width=1024
                 )
                 with gr.Row(equal_height=True):
                     prompt = gr.Text(
@@ -195,6 +189,7 @@ def build_ui(
                 steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
                 guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
                 aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
+                scheduler = gr.Dropdown(label="Scheduler", choices=DIFFUSER.get_supported_schedulers(), value="euler")
                 negative_prompt = gr.Text(
                     label="Negative prompt",
                     placeholder="describe what you don't want to draw",
@@ -206,7 +201,8 @@ def build_ui(
         # UI logic
         generate_btn.click(
             fn=generate,
-            inputs=[checkpoint, loras, embeddings, prompt, negative_prompt, project, steps, guidance, aspect],
+            inputs=[checkpoint, loras, embeddings, prompt, negative_prompt, project, steps, guidance, aspect,
+                    scheduler],
             outputs=[image]
         )
     return app
