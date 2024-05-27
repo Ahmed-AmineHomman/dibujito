@@ -17,6 +17,7 @@ class Diffuser:
     pipeline: StableDiffusionPipeline
     embeddings: List[str] = []
     cuda: bool
+    ready: bool = False
 
     _paths: Dict[str, str]
 
@@ -41,6 +42,7 @@ class Diffuser:
         del self.pipeline
         gc.collect()
         self.pipeline: StableDiffusionPipeline = None
+        self.ready = False
 
     def load_checkpoint(self, filename: str) -> None:
         """
@@ -54,6 +56,7 @@ class Diffuser:
         if self.cuda:
             self.pipeline = self.pipeline.to("cuda")
             self.pipeline.enable_model_cpu_offload()
+        self.ready = True
 
     def load_lora(self, filename: str) -> None:
         """Adds the LoRa corresponding to the provided filename to the pipeline."""

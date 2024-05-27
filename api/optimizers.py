@@ -30,13 +30,20 @@ Additional Instructions:
     ALWAYS return something.
 4.  ONLY return the optimized prompt, without any explanation, introduction or any other text.
 """
-EXAMPLES = [
-    "Woman wearing a long and elegant black dress dances alone in a deserted ballroom. The woman is dressed like a princess, and the ballroom is reminiscent of a fairy tale palace. The scene takes place at nigh.",
-    "A catmen musketeer, with complete blue musketeer uniform, walks confidently in the streets of renaissance paris by night.  The streets are deserted, the lighting is scarce, and the overall vibe is slightly oppressive: by looking at the picture, one has the feeling that something dangerous is about to happen to the cat. But the catmen looks strong, comfident and looks like he can overcome any difficulty. The picture is a fantasy character illustration such as one can find for DnD characters.",
-]
-TEMPLATES = {
-    "sd1": {
-        "rules": """
+EXAMPLES = {
+    "inputs": [
+        "Woman wearing a long and elegant black dress dances alone in a deserted ballroom. The woman is dressed like a princess, and the ballroom is reminiscent of a fairy tale palace. The scene takes place at nigh.",
+        "A catmen musketeer, with complete blue musketeer uniform, walks confidently in the streets of renaissance paris by night.  The streets are deserted, the lighting is scarce, and the overall vibe is slightly oppressive: by looking at the picture, one has the feeling that something dangerous is about to happen to the cat. But the catmen looks strong, comfident and looks like he can overcome any difficulty. The picture is a fantasy character illustration such as one can find for DnD characters.",
+    ],
+    "outputs": {
+        "sd1": [
+            "woman in a long, elegant black dress, dancing alone in a deserted ballroom, digital art, fantasy style, in the style of a fairy tale palace, night scene, highly detailed, dramatic lighting, princess-like, mystical ambiance, shimmering moonlight",
+            "catmen musketeer, complete blue musketeer uniform, walks confidently in the deserted streets of Renaissance Paris by night, digital art, fantasy character illustration, in the style of DnD characters, sharp, highly detailed, scarce lighting, slightly oppressive vibe, something dangerous about to happen, strong and confident, capable of overcoming any difficulty"
+        ]
+    }
+}
+RULES = {
+    "sd1": """
 1. Structure: follow this format: [subject][medium][style][artists][resolution][additional details].
 2. Keywords: use comma-separated keywords to ensure clarity and model compatibility.
 3. Components:
@@ -49,11 +56,6 @@ TEMPLATES = {
 4. Emphasis and Weighting: use parentheses to add emphasis or adjust weighting. Example: "(vibrant) flowers, (lush) greenery".
 5. Clarity: Ensure the prompt is concise and free from unnecessary complexity.
 """,
-        "examples": [
-            "woman in a long, elegant black dress, dancing alone in a deserted ballroom, digital art, fantasy style, in the style of a fairy tale palace, night scene, highly detailed, dramatic lighting, princess-like, mystical ambiance, shimmering moonlight",
-            "catmen musketeer, complete blue musketeer uniform, walks confidently in the deserted streets of Renaissance Paris by night, digital art, fantasy character illustration, in the style of DnD characters, sharp, highly detailed, scarce lighting, slightly oppressive vibe, something dangerous about to happen, strong and confident, capable of overcoming any difficulty"
-        ]
-    }
 }
 
 
@@ -86,7 +88,7 @@ def optimize(
     """
     if not project:
         project = "Generate beautiful and aesthetic images"
-    if model not in TEMPLATES.keys():
+    if model not in RULES.keys():
         message = f"Model {model} not supported"
         logging.error(message)
         raise ValueError(message)
@@ -95,15 +97,15 @@ def optimize(
     system_prompt = (
         SYSTEM_PROMPT
         .replace("<project>", project)
-        .replace("<rules>", TEMPLATES[model]["rules"])
+        .replace("<rules>", RULES[model])
     )
 
     # load model
     llm = LLM(system_prompt=system_prompt)
 
     # add examples
-    for i, query in enumerate(EXAMPLES):
-        response = TEMPLATES.get(model).get("examples")[i]
+    for i, query in enumerate(EXAMPLES.get("inputs")):
+        response = EXAMPLES.get("outputs").get(model)[i]
         llm.add_exchange(query=query, response=response)
 
     # optimize

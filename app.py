@@ -75,31 +75,47 @@ def load_pipeline(
         checkpoint: str,
         lora: List[str],
         embeddings: List[str],
+        progress: gr.Progress = gr.Progress()
 ) -> None:
     logging.info(f"loading checkpoint")
+    progress(progress=0, desc="loading checkpoint")
     DIFFUSER.load_checkpoint(checkpoint)
 
     logging.info("loading loras")
-    for l in lora:
+    for i, l in enumerate(lora):
+        progress(progress=0.5 + 0.4 * i / len(lora), desc=f"loading lora '{l}'")
         DIFFUSER.load_lora(l)
 
     logging.info("loading embeddings")
-    for e in embeddings:
+    for i, e in enumerate(embeddings):
+        progress(progress=0.9 + 0.1 * i / len(embeddings), desc=f"loading embeddings '{e}'")
         DIFFUSER.load_embeddings(e)
 
     logging.info("done")
 
 
 def generate(
+        checkpoint: str,
+        lora: List[str],
+        embeddings: List[str],
         prompt: str,
         negative_prompt: str,
         project: str,
         steps: int,
         guidance: float,
         aspect: str,
+        progress: gr.Progress = gr.Progress()
 ) -> Image:
     """Generates the image corresponding to the provided prompt."""
+    progress(progress=0, desc="loading pipeline")
+    if not DIFFUSER.ready:
+        logging.info(f"loading pipeline")
+        load_pipeline(checkpoint=checkpoint, lora=lora, embeddings=embeddings, progress=progress)
+    else:
+        logging.info("reusing pipeline")
+
     logging.info(f"optimizing prompt")
+    progress(progress=0.25, desc="optimizing prompt")
     try:
         optimized_prompt = optimize(prompt, model="sd1", project=project)
     except Exception as error:
@@ -109,6 +125,7 @@ def generate(
     logging.info(f"optimized prompt: {optimized_prompt}")
 
     logging.info(f"generating image")
+    progress(progress=0.5, desc="generating image")
     try:
         image = DIFFUSER.imagine(
             prompt=optimized_prompt,
@@ -142,46 +159,56 @@ def build_ui(
     with gr.Blocks() as app:
         gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
 
-        # prompting section
-        with gr.Row():
-            image = gr.Image(label="Image", format="png", type="pil", height=1024, width=1024, scale=2)
-            with gr.Column(scale=1):
-                with gr.Accordion(label="Models", open=False):
-                    checkpoint = gr.Dropdown(label="Diffuser", choices=models.get("checkpoints"), value=checkpoint,
-                                             multiselect=False)
-                    loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True)
-                    embeddings = gr.Dropdown(label="Embeddings", choices=models.get("embeddings"), value=[],
-                                             multiselect=True)
-                    pipeline_btn = gr.Button(value="Load pipeline", variant="secondary")
-                with gr.Accordion(label="Parameters", open=False):
-                    steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
-                    guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
-                    aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
-                with gr.Accordion(label="Prompting", open=True):
-                    negative_prompt = gr.TextArea(
-                        label="Negative prompt",
-                        placeholder="describe what you don't want to draw",
-                        interactive=True
-                    )
-                    project = gr.Text(label="Project", placeholder="describe your project here", interactive=True)
-        with gr.Row():
-            prompt = gr.TextArea(
-                label="Prompt",
-                placeholder="describe what you want to draw",
-                scale=2
+        with gr.Accordion(label="Parameters", open=False):
+            with gr.Row():
+                checkpoint = gr.Dropdown(label="Diffuser", choices=models.get("checkpoints"), value=checkpoint,
+                                         multiselect=False, scale=2)
+                loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True, scale=2)
+                embeddings = gr.Dropdown(label="Embeddings", choices=models.get("embeddings"), value=[],
+                                         multiselect=True, scale=2)
+            project = gr.Text(
+                label="Project",
+                placeholder="describe your project here",
+                interactive=True,
+                container=True,
+                lines=2
             )
-            generate_btn = gr.Button(value="Run", variant="primary", scale=1)
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=2):
+                image = gr.Image(
+                    label="Image",
+                    format="png",
+                    type="pil",
+                    container=True,
+                )
+                with gr.Row(equal_height=True):
+                    prompt = gr.Text(
+                        label="Prompt",
+                        placeholder="describe what you want to draw",
+                        lines=3,
+                        interactive=True,
+                        container=True,
+                        scale=3
+                    )
+                    generate_btn = gr.Button(value="Run", variant="primary", scale=1)
+            with gr.Column(scale=1, variant="panel"):
+                steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
+                guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
+                aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
+                negative_prompt = gr.Text(
+                    label="Negative prompt",
+                    placeholder="describe what you don't want to draw",
+                    interactive=True,
+                    container=True,
+                    lines=5,
+                )
 
         # UI logic
-        pipeline_btn.click(
-            fn=load_pipeline,
-            inputs=[checkpoint, loras, embeddings],
-            outputs=[]
-        )
         generate_btn.click(
             fn=generate,
-            inputs=[prompt, negative_prompt, project, steps, guidance, aspect],
-            outputs=[image])
+            inputs=[checkpoint, loras, embeddings, prompt, negative_prompt, project, steps, guidance, aspect],
+            outputs=[image]
+        )
     return app
 
 
