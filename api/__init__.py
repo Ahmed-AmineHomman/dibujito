@@ -7,7 +7,7 @@ from .config import AppConfig
 from .diffuser import Diffuser
 from .llm import LLM
 
-DEFAULT_CHECKPOINT_NAME = "aom3.safetensors"
+DEFAULT_CHECKPOINT_NAME = "dreamshaper.safetensors"
 
 
 def configure_logger(logpath: Optional[str] = None) -> None:

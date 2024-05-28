@@ -1,0 +1,58 @@
+{
+  "dreamshaper": {
+    "type": "checkpoints",
+    "specs": {
+      "repo_id": "Lykon/DreamShaper",
+      "subfolder": "",
+      "filename": "DreamShaper_8_pruned.safetensors"
+    }
+  },
+  "openjourney": {
+    "type": "checkpoints",
+    "specs": {
+      "repo_id": "prompthero/openjourney",
+      "subfolder": "",
+      "filename": "mdjrny-v4.safetensors"
+    }
+  },
+  "anylora": {
+    "type": "checkpoints",
+    "specs": {
+      "repo_id": "Lykon/AnyLoRA",
+      "subfolder": "",
+      "filename": "AnyLoRA_bakedVae_blessed_fp16.safetensors"
+    }
+  },
+  "style_anime": {
+    "type": "loras",
+    "specs": {
+      "repo_id": "Lykon/LoRA",
+      "subfolder": "",
+      "filename": "sam_yang_offset.safetensors"
+    }
+  },
+  "style_comics": {
+    "type": "loras",
+    "specs": {
+      "repo_id": "Lykon/LoRA",
+      "subfolder": "",
+      "filename": "jim_lee_offset.safetensors"
+    }
+  },
+  "style_ghibli": {
+    "type": "loras",
+    "specs": {
+      "repo_id": "Lykon/LoRA",
+      "subfolder": "",
+      "filename": "ghibli_style_offset.safetensors"
+    }
+  },
+  "style_arcane": {
+    "type": "loras",
+    "specs": {
+      "repo_id": "Lykon/LoRA",
+      "subfolder": "",
+      "filename": "arcane_offset.safetensors"
+    }
+  }
+}

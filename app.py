@@ -6,7 +6,7 @@ from typing import List
 import gradio as gr
 from PIL import Image
 
-from api import configure_logger, configure_api_keys, AppConfig
+from api import configure_logger, configure_api_keys, AppConfig, DEFAULT_CHECKPOINT_NAME
 from api.diffuser import Diffuser
 from api.optimizers import optimize
 
@@ -57,15 +57,10 @@ def load_parameters() -> Namespace:
         help="path to the directory containing the loras."
     )
     parser.add_argument(
-        "--embeddings-dir",
-        type=str,
-        required=False,
-        help="path to the directory containing the embeddings."
-    )
-    parser.add_argument(
         "--checkpoint",
         type=str,
         required=False,
+        default=DEFAULT_CHECKPOINT_NAME,
         help="name of the checkpoint file to load during app start."
     )
     return parser.parse_args()
@@ -74,7 +69,6 @@ def load_parameters() -> Namespace:
 def generate(
         checkpoint: str,
         lora: List[str],
-        embeddings: List[str],
         prompt: str,
         negative_prompt: str,
         project: str,
@@ -86,7 +80,7 @@ def generate(
 ) -> Image:
     """Generates the image corresponding to the provided prompt."""
     progress(progress=0, desc="loading checkpoint")
-    if (not DIFFUSER.ready) or (DIFFUSER.checkpoint != checkpoint):
+    if DIFFUSER.get_checkpoint() != checkpoint.split(".")[0]:
         logging.info(f"loading checkpoint")
         DIFFUSER.load_checkpoint(checkpoint)
     else:
@@ -96,11 +90,6 @@ def generate(
     for i, l in enumerate(lora):
         progress(progress=0.2 + 0.1 * i / len(lora), desc=f"loading lora '{l}'")
         DIFFUSER.load_lora(l)
-
-    logging.info("loading embeddings")
-    for i, e in enumerate(embeddings):
-        progress(progress=0.3 + 0.05 * i / len(embeddings), desc=f"loading embeddings '{e}'")
-        DIFFUSER.load_embeddings(e)
 
     logging.info(f"defining scheduler")
     progress(progress=0.35, desc=f"loading scheduler")
@@ -135,13 +124,11 @@ def generate(
     return image
 
 
-def build_ui(
-        checkpoint: str
-) -> gr.Blocks:
+def build_ui() -> gr.Blocks:
     """Builds the UI."""
     # list models
     models = {}
-    for subtype in ["checkpoints", "loras", "embeddings"]:
+    for subtype in ["checkpoints", "loras"]:
         base_dir = CONFIG.get(subtype)
         models[subtype] = [
             f for f in os.listdir(base_dir) if
@@ -153,11 +140,9 @@ def build_ui(
 
         with gr.Accordion(label="Parameters", open=False):
             with gr.Row():
-                checkpoint = gr.Dropdown(label="Diffuser", choices=models.get("checkpoints"), value=checkpoint,
-                                         multiselect=False, scale=2)
+                checkpoint = gr.Dropdown(label="Diffuser", value=DIFFUSER.get_checkpoint(), multiselect=False, scale=2,
+                                         choices=models.get("checkpoints"))
                 loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True, scale=2)
-                embeddings = gr.Dropdown(label="Embeddings", choices=models.get("embeddings"), value=[],
-                                         multiselect=True, scale=2)
             project = gr.Text(
                 label="Project",
                 placeholder="describe your project here",
@@ -201,8 +186,7 @@ def build_ui(
         # UI logic
         generate_btn.click(
             fn=generate,
-            inputs=[checkpoint, loras, embeddings, prompt, negative_prompt, project, steps, guidance, aspect,
-                    scheduler],
+            inputs=[checkpoint, loras, prompt, negative_prompt, project, steps, guidance, aspect, scheduler],
             outputs=[image]
         )
     return app
@@ -222,28 +206,19 @@ if __name__ == "__main__":
             filepath="config.json",
             checkpoints=parameters.checkpoints_dir,
             loras=parameters.loras_dir,
-            embeddings=parameters.embeddings_dir,
         )
     else:
-        logging.warning("no config file found -> using defaults paths")
+        logging.warning("no config file found -> using defaults and provided paths")
         CONFIG = AppConfig(
             checkpoints=parameters.checkpoints_dir,
             loras=parameters.loras_dir,
-            embeddings=parameters.embeddings_dir,
         )
 
     logging.info(f"loading diffusion pipeline")
-    DIFFUSER = Diffuser(
-        checkpoint_dir=CONFIG.checkpoints,
-        lora_dir=CONFIG.loras,
-        embeddings_dir=CONFIG.embeddings,
-        checkpoint=parameters.checkpoint
-    )
+    DIFFUSER = Diffuser(config=CONFIG, checkpoint=parameters.checkpoint)
 
     logging.info(f"building UI")
-    app = build_ui(
-        checkpoint=parameters.checkpoint
-    )
+    app = build_ui()
 
     logging.info("running app")
     app.launch()

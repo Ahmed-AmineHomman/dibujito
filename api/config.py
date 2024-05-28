@@ -8,28 +8,22 @@ class AppConfig:
     """
     checkpoints: str = "./models/checkpoints"
     loras: str = "./models/loras"
-    embeddings: str = "./models/embeddings"
 
     def __init__(
             self,
             checkpoints: Optional[str] = None,
             loras: Optional[str] = None,
-            embeddings: Optional[str] = None,
     ):
         if checkpoints:
             self.checkpoints = checkpoints
         if loras:
             self.loras = loras
-        if embeddings:
-            self.embeddings = embeddings
 
     def get(self, subtype: str) -> str:
         if subtype == "checkpoints":
             return self.checkpoints
         elif subtype == "loras":
             return self.loras
-        elif subtype == "embeddings":
-            return self.embeddings
         else:
             raise ValueError(f"Unknown subtype {subtype}")
 
@@ -43,7 +37,6 @@ class AppConfig:
             filepath: str,
             checkpoints: Optional[str] = None,
             loras: Optional[str] = None,
-            embeddings: Optional[str] = None,
     ) -> "AppConfig":
         """
         Loads the config from a JSON object in the provided ``filepath``.
@@ -56,6 +49,4 @@ class AppConfig:
             config["checkpoints"] = checkpoints
         if loras:
             config["loras"] = loras
-        if embeddings:
-            config["embeddings"] = embeddings
         return AppConfig(**config)

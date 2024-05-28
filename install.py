@@ -2,13 +2,18 @@ import logging
 import os
 from argparse import ArgumentParser, Namespace
 
-from huggingface_hub import hf_hub_download
-
-from api import configure_logger, AppConfig, DEFAULT_CHECKPOINT_NAME
+from api import configure_logger, AppConfig
+from api.factory import ModelFactory
 
 
 def load_parameters() -> Namespace:
     parser = ArgumentParser()
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        required=False,
+        help="Hugging Face Hub API key."
+    )
     parser.add_argument(
         "--checkpoints-dir",
         type=str,
@@ -17,12 +22,6 @@ def load_parameters() -> Namespace:
     )
     parser.add_argument(
         "--loras-dir",
-        type=str,
-        required=False,
-        help="path to the directory containing the embeddings."
-    )
-    parser.add_argument(
-        "--embeddings-dir",
         type=str,
         required=False,
         help="path to the directory containing the embeddings."
@@ -46,38 +45,20 @@ if __name__ == "__main__":
             filepath="config.json",
             checkpoints=parameters.checkpoints_dir,
             loras=parameters.loras_dir,
-            embeddings=parameters.embeddings_dir,
         )
     else:
         config = AppConfig(
             checkpoints=parameters.checkpoints_dir,
             loras=parameters.loras_dir,
-            embeddings=parameters.embeddings_dir,
         )
 
     logging.info("dumping config")
     config.dump("config.json")
 
-    logging.info("creating directories")
-    os.makedirs(config.checkpoints, exist_ok=True)
-    os.makedirs(config.loras, exist_ok=True)
-    os.makedirs(config.embeddings, exist_ok=True)
+    logging.info("preparing database")
+    factory = ModelFactory(config=config, api_key=parameters.api_key)
 
     logging.info("downloading checkpoints")
-    filepath = os.path.join(config.checkpoints, DEFAULT_CHECKPOINT_NAME)
-    if os.path.exists(filepath):
-        logging.info("model already downloaded")
-    else:
-        hf_hub_download(
-            repo_id="WarriorMama777/OrangeMixs",
-            repo_type="model",
-            subfolder="Models/AbyssOrangeMix3",
-            filename="AOM3_orangemixs.safetensors",
-            local_dir=config.checkpoints
-        )
-        os.rename(
-            src=os.path.join(config.checkpoints, "Models", "AbyssOrangeMix3", "AOM3_orangemixs.safetensors"),
-            dst=os.path.join(config.checkpoints, DEFAULT_CHECKPOINT_NAME)
-        )
+    factory.download_all()
 
     logging.info("done")

@@ -1,4 +1,3 @@
-import gc
 import logging
 import os
 from typing import Optional, List, Dict
@@ -6,6 +5,8 @@ from typing import Optional, List, Dict
 import torch
 from PIL import Image
 from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, SchedulerMixin
+
+from .config import AppConfig
 
 
 class Diffuser:
@@ -15,12 +16,10 @@ class Diffuser:
     It is based on the ``diffusers`` library, and is compatible with any stable-diffusion 1.5 based models.
     """
     pipeline: StableDiffusionPipeline
-    embeddings: List[str] = []
+    config: AppConfig
     cuda: bool
-    ready: bool = False
-    checkpoint: Optional[str] = None
 
-    _paths: Dict[str, str]
+    _checkpoint: Optional[str] = None
     _supported_schedulers: Dict[str, SchedulerMixin] = {
         "euler_ancestral": EulerAncestralDiscreteScheduler,
         "euler": EulerDiscreteScheduler
@@ -28,69 +27,73 @@ class Diffuser:
 
     def __init__(
             self,
-            checkpoint_dir: str,
-            lora_dir: str,
-            embeddings_dir: str,
-            checkpoint: Optional[str] = None
+            config: AppConfig,
+            checkpoint: str
     ):
-        self._paths = {
-            "checkpoints": checkpoint_dir,
-            "loras": lora_dir,
-            "embeddings": embeddings_dir
-        }
+        self.config = config
+        self._embeddings = []
         self.cuda = torch.cuda.is_available()
-        if checkpoint:
-            self.load_checkpoint(filename=checkpoint)
+        self.load_checkpoint(filename=checkpoint)
 
-    def reset(self) -> None:
-        """Resets the pipeline."""
-        del self.pipeline
-        gc.collect()
-        self.pipeline: StableDiffusionPipeline = None
-        self.ready = False
+    def get_checkpoint(self) -> str:
+        """Returns the currently loaded checkpoint."""
+        return self._checkpoint
 
-    def load_checkpoint(self, filename: str, ) -> None:
+    def get_loaded_loras(self) -> List[str]:
+        """Returns the list of already loaded LoRAs. """
+        adapters = self.pipeline.get_list_adapters()
+        adapters = set(adapters.get("text_encoder", []) + adapters.get("unet", []))
+        return list(adapters)
+
+    def get_active_loras(self) -> List[str]:
+        """Returns the list of currently active LoRAs. """
+        return self.pipeline.get_active_adapters()
+
+    def load_checkpoint(self, filename: str) -> None:
         """
         Resets the pipeline with the provided checkpoint.
 
         **Warning**: loading a new checkpoints will drop all loras & embeddings from the pipeline.
         """
-        filepath = os.path.join(self._paths.get("checkpoints"), filename)
         checkpoint = filename.split(".")[0]
-        if checkpoint != self.checkpoint:
-            self.checkpoint = checkpoint
+        if checkpoint != self._checkpoint:
+            filepath = os.path.join(self.config.checkpoints, filename)
             params = self._set_pipeline_parameters()
             self.pipeline = StableDiffusionPipeline.from_single_file(filepath, **params)
             if self.cuda:
                 self.pipeline = self.pipeline.to("cuda")
                 self.pipeline.enable_model_cpu_offload()
-            self.ready = True
+            self._checkpoint = checkpoint
 
     def load_lora(self, filename: str) -> None:
         """Adds the LoRa corresponding to the provided filename to the pipeline."""
-        lora = filename.split(".")[0]
+        model = filename.split(".")[0]
 
-        # load lora
-        if lora not in self.pipeline.get_list_adapters():
-            filepath = os.path.join(self._paths.get("loras"), filename)
+        # load lora weights if not already loaded
+        if model not in self.get_loaded_loras():
+            filepath = os.path.join(self.config.loras, filename)
             self.pipeline.load_lora_weights(
                 pretrained_model_name_or_path_or_dict=filepath,
-                adapter_name=lora
+                adapter_name=model
             )
 
         # set lora as active
         active_adapters = self.pipeline.get_active_adapters()
-        if lora not in active_adapters:
-            self.pipeline.set_active_adapters(active_adapters + [lora])
+        if model not in active_adapters:
+            self.pipeline.set_active_adapters(active_adapters + [model])
 
-    def load_embeddings(self, filename: str) -> None:
-        """Adds the textual inversion (=embeddings) corresponding to the provided filename to the pipeline."""
-        filepath = os.path.join(self._paths.get("embeddings"), filename)
-        name = filename.split(".")[0]
-        self.pipeline.load_textual_inversion(
-            pretrained_model_name_or_path=filepath,
-            token=name
-        )
+    def unload_lora(self, model: str) -> None:
+        """Removes the LoRa corresponding to the provided filename from the pipeline."""
+        if model not in self.get_loaded_loras():
+            logging.warning(f"lora '{model}' not loaded -> skipping unload")
+
+        # set lora as inactive
+        active_adapters = self.pipeline.get_active_adapters()
+        if model in active_adapters:
+            self.pipeline.set_active_adapters(active_adapters.remove(model))
+
+        # delete lora weights
+        self.pipeline.delete_adapters(adapter_names=model)
 
     def set_scheduler(self, scheduler: str) -> None:
         """
