@@ -134,15 +134,12 @@ def build_ui() -> gr.Blocks:
             f for f in os.listdir(base_dir) if
             (os.path.isfile(os.path.join(base_dir, f)) and (f.split(".")[-1] in ["safetensors", "ckpt", "bin", "pt"]))
         ]
+    checkpoint = DIFFUSER.get_checkpoint()
 
     with gr.Blocks() as app:
         gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
 
-        with gr.Accordion(label="Parameters", open=False):
-            with gr.Row():
-                checkpoint = gr.Dropdown(label="Diffuser", value=DIFFUSER.get_checkpoint(), multiselect=False, scale=2,
-                                         choices=models.get("checkpoints"))
-                loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True, scale=2)
+        with gr.Accordion(label="Project", open=False):
             project = gr.Text(
                 label="Project",
                 placeholder="describe your project here",
@@ -171,6 +168,9 @@ def build_ui() -> gr.Blocks:
                     )
                     generate_btn = gr.Button(value="Run", variant="primary", scale=1)
             with gr.Column(scale=1, variant="panel"):
+                checkpoint = gr.Dropdown(label="Diffuser", choices=models.get("checkpoints"), value=checkpoint,
+                                         multiselect=False)
+                loras = gr.Dropdown(label="LoRAs", choices=models.get("loras"), value=[], multiselect=True)
                 steps = gr.Slider(label="# steps", minimum=1, maximum=50, value=15, step=1)
                 guidance = gr.Slider(label="guidance", minimum=1, maximum=20, value=7, step=0.5)
                 aspect = gr.Dropdown(label="Aspect", choices=["square", "portrait", "landscape"], value="square")
