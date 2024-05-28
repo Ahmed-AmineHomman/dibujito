@@ -1,11 +1,11 @@
 import json
 import logging
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from huggingface_hub import hf_hub_download
 
-from .config import AppConfig
+from .config import HF_API_KEY_ENV_NAME
 
 
 class ModelFactory:
@@ -15,19 +15,16 @@ class ModelFactory:
     Allows for retrieval of model files (checkpoints, loras, etc...) from various external sources (Hugging Face Hub, Civitai, etc...).
     Also manages the local model database.
     """
-    config: AppConfig
+    paths: Dict[str, str]
     _models: dict
     _api_key: str = None
-    _api_entry: str = "HF_API_KEY"
 
     def __init__(
             self,
-            config: AppConfig,
-            api_key: Optional[str] = None
+            paths: Dict[str, str],
     ):
-        self._api_key = os.environ.get(self._api_entry) if not api_key else api_key
-        self.config = config
-        for filepath in self.config.__dict__.values():  # create directories if they don't exist
+        self.paths = paths
+        for filepath in self.paths.values():  # create directories if they don't exist
             if not os.path.exists(filepath):
                 os.makedirs(filepath)
         filepath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "models.json")
@@ -48,7 +45,7 @@ class ModelFactory:
         if model not in self._models.keys():
             raise ValueError(f"Model '{model}' not supported.")
         model_type = self._models.get(model).get("type")
-        return os.path.join(self.config.get(model_type), f"{model}.safetensors")
+        return os.path.join(self.paths.get(model_type), f"{model}.safetensors")
 
     def download(self, model: str) -> None:
         """
@@ -73,7 +70,7 @@ class ModelFactory:
 
         # if files already exists -> skip download
         model_type = self._models.get(model).get("type")
-        target_path = os.path.join(self.config.get(model_type), f"{model}.safetensors")
+        target_path = os.path.join(self.paths.get(model_type), f"{model}.safetensors")
         if os.path.exists(target_path):
             logging.warning(f"model already exists at {target_path} -> skipping download")
             return
@@ -84,18 +81,18 @@ class ModelFactory:
         specs = self._models.get(model).get("specs")
         hf_hub_download(
             repo_type="model",
-            local_dir=self.config.get(model_type),
-            token=self._api_key,
+            local_dir=self.paths.get(model_type),
+            token=os.getenv(HF_API_KEY_ENV_NAME),
             **specs
         )
         if len(specs.get("subfolder")) > 0:
-            filepath = os.path.join(self.config.get(model_type), *specs.get("subfolder").split("/"),
+            filepath = os.path.join(self.paths.get(model_type), *specs.get("subfolder").split("/"),
                                     specs.get("filename"))
         else:
-            filepath = os.path.join(self.config.get(model_type), specs.get("filename"))
+            filepath = os.path.join(self.paths.get(model_type), specs.get("filename"))
         os.rename(
             src=filepath,
-            dst=os.path.join(self.config.get(model_type), f"{model}.safetensors")
+            dst=os.path.join(self.paths.get(model_type), f"{model}.safetensors")
         )
 
     def download_all(self) -> None:

@@ -6,8 +6,6 @@ import torch
 from PIL import Image
 from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, SchedulerMixin
 
-from .config import AppConfig
-
 
 class Diffuser:
     """
@@ -16,7 +14,6 @@ class Diffuser:
     It is based on the ``diffusers`` library, and is compatible with any stable-diffusion 1.5 based models.
     """
     pipeline: StableDiffusionPipeline
-    config: AppConfig
     cuda: bool
 
     _checkpoint: Optional[str] = None
@@ -27,13 +24,11 @@ class Diffuser:
 
     def __init__(
             self,
-            config: AppConfig,
-            checkpoint: str
+            checkpoint_path: str
     ):
-        self.config = config
         self._embeddings = []
         self.cuda = torch.cuda.is_available()
-        self.load_checkpoint(filename=checkpoint)
+        self.load_checkpoint(filepath=checkpoint_path)
 
     def get_checkpoint(self) -> str:
         """Returns the currently loaded checkpoint."""
@@ -49,29 +44,27 @@ class Diffuser:
         """Returns the list of currently active LoRAs. """
         return self.pipeline.get_active_adapters()
 
-    def load_checkpoint(self, filename: str) -> None:
+    def load_checkpoint(self, filepath: str) -> None:
         """
         Resets the pipeline with the provided checkpoint.
 
         **Warning**: loading a new checkpoints will drop all loras & embeddings from the pipeline.
         """
-        checkpoint = filename.split(".")[0]
-        if checkpoint != self._checkpoint:
-            filepath = os.path.join(self.config.checkpoints, filename)
+        model = os.path.basename(filepath).split(".")[0]
+        if model != self._checkpoint:
             params = self._set_pipeline_parameters()
             self.pipeline = StableDiffusionPipeline.from_single_file(filepath, **params)
             if self.cuda:
                 self.pipeline = self.pipeline.to("cuda")
                 self.pipeline.enable_model_cpu_offload()
-            self._checkpoint = checkpoint
+            self._checkpoint = model
 
-    def load_lora(self, filename: str) -> None:
+    def load_lora(self, filepath: str) -> None:
         """Adds the LoRa corresponding to the provided filename to the pipeline."""
-        model = filename.split(".")[0]
+        model = os.path.basename(filepath).split(".")[0]
 
         # load lora weights if not already loaded
         if model not in self.get_loaded_loras():
-            filepath = os.path.join(self.config.loras, filename)
             self.pipeline.load_lora_weights(
                 pretrained_model_name_or_path_or_dict=filepath,
                 adapter_name=model

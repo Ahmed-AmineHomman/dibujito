@@ -3,16 +3,29 @@ import os
 from argparse import ArgumentParser, Namespace
 
 from api import configure_logger, AppConfig
+from api.config import COHERE_API_KEY_ENV_NAME, OLLAMA_HOST_ENV_NAME
 from api.factory import ModelFactory
 
 
 def load_parameters() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
-        "--api-key",
+        "--hf-api-key",
         type=str,
         required=False,
         help="Hugging Face Hub API key."
+    )
+    parser.add_argument(
+        "--cohere-api-key",
+        type=str,
+        required=False,
+        help="Cohere API key."
+    )
+    parser.add_argument(
+        "--ollama-host",
+        type=str,
+        required=False,
+        help="Ollama API host (i.e. base url)."
     )
     parser.add_argument(
         "--checkpoints-dir",
@@ -39,26 +52,29 @@ if __name__ == "__main__":
     parameters = load_parameters()
     configure_logger(logpath=parameters.logpath if parameters.logpath else None)
 
-    logging.info("configuring model paths")
-    if os.path.exists("config.json"):
-        config = AppConfig.load(
-            filepath="config.json",
-            checkpoints=parameters.checkpoints_dir,
-            loras=parameters.loras_dir,
-        )
-    else:
-        config = AppConfig(
-            checkpoints=parameters.checkpoints_dir,
-            loras=parameters.loras_dir,
-        )
+    logging.info("generating config file")
 
-    logging.info("dumping config")
+    # custom paths
+    paths = {}
+    if parameters.checkpoints_dir:
+        paths["checkpoints"] = parameters.checkpoints_dir
+    if parameters.loras_dir:
+        paths["loras"] = parameters.loras_dir
+
+    # custom environment variables
+    if parameters.cohere_api_key:
+        os.environ[COHERE_API_KEY_ENV_NAME] = parameters.cohere_api_key
+    if parameters.ollama_host:
+        os.environ[OLLAMA_HOST_ENV_NAME] = parameters.ollama_host
+
+    # generate config
+    config = AppConfig(paths=paths)
+
+    logging.info("saving config file")
     config.dump("config.json")
 
     logging.info("preparing database")
-    factory = ModelFactory(config=config, api_key=parameters.api_key)
-
     logging.info("downloading checkpoints")
-    factory.download_all()
+    ModelFactory(paths=config.paths).download_all()
 
     logging.info("done")

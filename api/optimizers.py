@@ -70,10 +70,9 @@ class PromptOptimizer:
     def __init__(
             self,
             api: str,
-            api_key: Optional[str] = None,
             api_model: Optional[str] = None
     ):
-        self.llm = LLM(api=api, api_key=api_key, api_model=api_model)
+        self.llm = LLM(api=api, api_model=api_model)
 
     def optimize(
             self,

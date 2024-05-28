@@ -1,7 +1,7 @@
 import logging
 import os
 from argparse import ArgumentParser, Namespace
-from typing import List
+from typing import List, Dict
 
 import gradio as gr
 from PIL import Image
@@ -25,7 +25,7 @@ Some tips:
     The LLM will take care of converting it into an optimal prompt.
 """
 
-CONFIG: AppConfig
+PATHS: Dict[str, str]
 DIFFUSER: Diffuser
 OPTIMIZER: PromptOptimizer
 
@@ -49,35 +49,17 @@ def load_parameters() -> Namespace:
         help="Model requested when calling the API (note: each API uses its own labels for its underlying models)."
     )
     parser.add_argument(
-        "--api-key",
-        type=str,
-        required=False,
-        help="API key used for authentification. If not specified, the app will look in the environment variable associated with the chosen API."
-    )
-    parser.add_argument(
-        "--logpath",
-        type=str,
-        required=False,
-        help="path to the logfile"
-    )
-    parser.add_argument(
-        "--checkpoints-dir",
-        type=str,
-        required=False,
-        help="path to the directory containing the model checkpoints."
-    )
-    parser.add_argument(
-        "--loras-dir",
-        type=str,
-        required=False,
-        help="path to the directory containing the loras."
-    )
-    parser.add_argument(
         "--checkpoint",
         type=str,
         required=False,
         default=DEFAULT_CHECKPOINT_NAME,
         help="name of the checkpoint file to load during app start."
+    )
+    parser.add_argument(
+        "--logpath",
+        type=str,
+        required=False,
+        help="path to the directory containing the logs. If not provided, logs will be outputted in default stream."
     )
     return parser.parse_args()
 
@@ -98,14 +80,14 @@ def generate(
     progress(progress=0, desc="loading checkpoint")
     if DIFFUSER.get_checkpoint() != checkpoint.split(".")[0]:
         logging.info(f"loading checkpoint")
-        DIFFUSER.load_checkpoint(checkpoint)
+        DIFFUSER.load_checkpoint(filepath=os.path.join(PATHS.get("checkpoints"), checkpoint))
     else:
         logging.info("reusing pipeline")
 
     progress(progress=0, desc="loading loras")
     for i, l in enumerate(lora):
         progress(progress=0.2 + 0.1 * i / len(lora), desc=f"loading lora '{l}'")
-        DIFFUSER.load_lora(l)
+        DIFFUSER.load_lora(filepath=os.path.join(PATHS.get("loras"), l))
 
     logging.info(f"defining scheduler")
     progress(progress=0.35, desc=f"loading scheduler")
@@ -145,7 +127,7 @@ def build_ui() -> gr.Blocks:
     # list models
     models = {}
     for subtype in ["checkpoints", "loras"]:
-        base_dir = CONFIG.get(subtype)
+        base_dir = PATHS.get(subtype)
         models[subtype] = [
             f for f in os.listdir(base_dir) if
             (os.path.isfile(os.path.join(base_dir, f)) and (f.split(".")[-1] in ["safetensors", "ckpt", "bin", "pt"]))
@@ -213,26 +195,27 @@ if __name__ == "__main__":
     parameters = load_parameters()
     configure_logger(logpath=parameters.logpath if parameters.logpath else None)
 
-    # generate default config file if not already existing
+    # load configuration
     logging.info("loading config")
-    if os.path.exists("./config.json"):
-        CONFIG = AppConfig.load(
-            filepath="config.json",
-            checkpoints=parameters.checkpoints_dir,
-            loras=parameters.loras_dir,
-        )
+    if not os.path.exists("config.json"):
+        logging.warning("cannot find configuration file -> continuing with default values")
+        config = AppConfig()
     else:
-        logging.warning("no config file found -> using defaults and provided paths")
-        CONFIG = AppConfig(
-            checkpoints=parameters.checkpoints_dir,
-            loras=parameters.loras_dir,
-        )
+        config = AppConfig.load(filepath="config.json")
+
+    # setting API keys & Hosts
+    logging.info("setting up environment variables")
+    for key, value in config.environment.items():
+        os.environ[key] = value
+
+    logging.info("setting up model paths")
+    PATHS = {**config.paths}
 
     logging.info(f"loading diffuser")
-    DIFFUSER = Diffuser(config=CONFIG, checkpoint=parameters.checkpoint)
+    DIFFUSER = Diffuser(checkpoint_path=os.path.join(config.paths.get("checkpoints"), parameters.checkpoint))
 
     logging.info("loading prompt optimizer")
-    OPTIMIZER = PromptOptimizer(api=parameters.api, api_key=parameters.api_key, api_model=parameters.api_model)
+    OPTIMIZER = PromptOptimizer(api=parameters.api, api_model=parameters.api_model)
 
     logging.info(f"building UI")
     app = build_ui()

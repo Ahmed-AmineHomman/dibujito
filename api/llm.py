@@ -15,11 +15,10 @@ class LLM:
     def __init__(
             self,
             api: str,
-            api_key: Optional[str] = None,
             api_model: Optional[str] = None,
             system_prompt: Optional[str] = None,
     ):
-        self.client = APIClientFactory.create(api=api, api_key=api_key)
+        self.client = APIClientFactory.create(api=api)
         self.conversation = []
         self.model = api_model
         self.system_prompt = system_prompt if system_prompt else self._default_system

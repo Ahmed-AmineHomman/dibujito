@@ -4,6 +4,9 @@ from typing import List, Optional
 
 from PIL import Image
 from cohere import Client as CohereClient, ChatMessage as CohereChatMessage
+from ollama import Client as OllamaClient
+
+from .config import OLLAMA_HOST_ENV_NAME, COHERE_API_KEY_ENV_NAME
 
 
 class ConversationExchange:
@@ -20,16 +23,6 @@ class APIClient:
     """
     Base class for API clients.
     """
-    _api_key: str
-    _environment_key: str
-
-    def __init__(
-            self,
-            api_key: Optional[str] = None,
-    ):
-        if (not api_key) and (not os.environ.get(self._environment_key)):
-            raise ValueError("No API key provided.")
-        self._api_key = api_key if api_key else os.environ.get(self._environment_key)
 
     def respond(
             self,
@@ -58,14 +51,9 @@ class CohereAPIClient(APIClient):
     """
     Cohere API client.
     """
-    _environment_key = "COHERE_API_KEY"
 
-    def __init__(
-            self,
-            api_key: Optional[str] = None,
-    ):
-        super().__init__(api_key=api_key)
-        self.client = CohereClient(api_key)
+    def __init__(self):
+        self.client = CohereClient(api_key=os.getenv(COHERE_API_KEY_ENV_NAME))
 
     def respond(
             self,
@@ -106,12 +94,57 @@ class CohereAPIClient(APIClient):
         return response
 
 
+class OllamaAPIClient(APIClient):
+    """
+    Ollama API client.
+    """
+
+    def __init__(self):
+        self.client = OllamaClient(host=os.getenv(OLLAMA_HOST_ENV_NAME))
+
+    def respond(
+            self,
+            prompt: str,
+            model: str = "phi3",
+            image_prompt: Optional[Image] = None,
+            system_prompt: Optional[str] = None,
+            conversation_history: Optional[List[ConversationExchange]] = None,
+            **kwargs
+    ) -> str:
+        if not conversation_history:
+            conversation_history = []
+
+        # cast conversation history into supported format
+        messages = [dict(role="system", content=system_prompt)]
+        for exchange in conversation_history:
+            messages += [
+                dict(role="user", content=exchange.query),
+                dict(role="assistant", content=exchange.response)
+            ]
+        messages.append(dict(role="user", content=prompt))
+
+        # request api
+        try:
+            response = (
+                self.client.chat(model=model, messages=messages, )
+                ["message"]
+                ["content"]
+            )
+        except Exception as error:
+            message = f"error during API call: {error}"
+            logging.error(message)
+            raise Exception(message)
+
+        return response
+
+
 class APIClientFactory:
     """
     Factory class for API clients.
     """
     _clients = {
-        "cohere": CohereAPIClient
+        "cohere": CohereAPIClient,
+        "ollama": OllamaAPIClient,
     }
 
     @staticmethod
@@ -124,7 +157,7 @@ class APIClientFactory:
     @staticmethod
     def create(
             api: str,
-            api_key: Optional[str] = None,
+            **kwargs
     ) -> APIClient:
         """
         Creates an API client.
@@ -133,4 +166,4 @@ class APIClientFactory:
             message = f"Client {api} not supported."
             logging.error(message)
             raise ValueError(message)
-        return APIClientFactory._clients.get(api)(api_key=api_key)
+        return APIClientFactory._clients[api](**kwargs)

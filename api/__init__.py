@@ -20,3 +20,8 @@ def configure_logger(logpath: Optional[str] = None) -> None:
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     logger.addHandler(console_handler)
+
+
+def configure_environment(config: AppConfig) -> None:
+    """Configures the environment."""
+    configure_logger(config.log_path)
