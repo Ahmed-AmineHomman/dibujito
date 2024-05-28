@@ -37,7 +37,7 @@ def load_parameters() -> Namespace:
         "--api",
         type=str,
         required=False,
-        choices=["cohere"],
+        choices=["cohere", "ollama"],
         default="cohere",
         help="API providing the LLM used in the app"
     )
