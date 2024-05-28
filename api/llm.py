@@ -1,13 +1,16 @@
 from typing import Optional, List
 
-from .clients import CohereAPIClient, ConversationExchange
+from .clients import ConversationExchange, APIClientFactory, APIClient
 
 
 class LLM:
     """Class implementing the LLM."""
+    client: APIClient
+    conversation: List[ConversationExchange]
+    system_prompt: str
+    model: str
+
     _default_system = "You are a helpful assistant."
-    _conversation: List[ConversationExchange]
-    _supported_apis = ["cohere"]
 
     def __init__(
             self,
@@ -16,11 +19,9 @@ class LLM:
             api_model: Optional[str] = None,
             system_prompt: Optional[str] = None,
     ):
-        # create API client
-        if api == "cohere":
-            self.client = CohereAPIClient(api_key=api_key)
+        self.client = APIClientFactory.create(api=api, api_key=api_key)
         self.conversation = []
-        self.api_model = api_model
+        self.model = api_model
         self.system_prompt = system_prompt if system_prompt else self._default_system
 
     def reset(
@@ -38,7 +39,7 @@ class LLM:
         if system_prompt:
             self.system_prompt = system_prompt
         if api_model:
-            self.api_model = api_model
+            self.model = api_model
 
     def chat(
             self,
@@ -53,7 +54,7 @@ class LLM:
             prompt=query,
             conversation_history=self.conversation,
             system_prompt=self.system_prompt,
-            model=self.api_model
+            model=self.model,
         )
         self.add_exchange(query=query, response=response)
         return response

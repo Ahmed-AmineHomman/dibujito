@@ -20,15 +20,20 @@ class APIClient:
     """
     Base class for API clients.
     """
+    _api_key: str
     _environment_key: str
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(
+            self,
+            api_key: Optional[str] = None,
+    ):
         if (not api_key) and (not os.environ.get(self._environment_key)):
             raise ValueError("No API key provided.")
-        self.api_key = api_key if api_key else os.environ.get(self._environment_key)
+        self._api_key = api_key if api_key else os.environ.get(self._environment_key)
 
     def respond(
             self,
+            model: str,
             prompt: str,
             image_prompt: Optional[Image] = None,
             system_prompt: Optional[str] = None,
@@ -40,6 +45,7 @@ class APIClient:
 
     def draw(
             self,
+            model: str,
             prompt: str,
             negative_prompt: str,
             image_prompt: Image,
@@ -54,17 +60,20 @@ class CohereAPIClient(APIClient):
     """
     _environment_key = "COHERE_API_KEY"
 
-    def __init__(self, api_key: str):
+    def __init__(
+            self,
+            api_key: Optional[str] = None,
+    ):
         super().__init__(api_key=api_key)
         self.client = CohereClient(api_key)
 
     def respond(
             self,
             prompt: str,
+            model: str = "command-r",
             image_prompt: Optional[Image] = None,
             system_prompt: Optional[str] = None,
             conversation_history: Optional[List[ConversationExchange]] = None,
-            model: str = "command-r",
             **kwargs
     ) -> str:
         if not conversation_history:
@@ -95,3 +104,33 @@ class CohereAPIClient(APIClient):
             raise Exception(message)
 
         return response
+
+
+class APIClientFactory:
+    """
+    Factory class for API clients.
+    """
+    _clients = {
+        "cohere": CohereAPIClient
+    }
+
+    @staticmethod
+    def get_supported_clients() -> List[str]:
+        """
+        Returns a list of supported clients.
+        """
+        return list(APIClientFactory._clients.keys())
+
+    @staticmethod
+    def create(
+            api: str,
+            api_key: Optional[str] = None,
+    ) -> APIClient:
+        """
+        Creates an API client.
+        """
+        if api not in APIClientFactory.get_supported_clients():
+            message = f"Client {api} not supported."
+            logging.error(message)
+            raise ValueError(message)
+        return APIClientFactory._clients.get(api)(api_key=api_key)
