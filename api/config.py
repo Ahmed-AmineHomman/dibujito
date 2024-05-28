@@ -30,7 +30,11 @@ class AppConfig:
     def dump(self, filepath: str) -> None:
         """Dumps the config into a JSON object in the provided ``filepath``."""
         with open(filepath, "w") as f:
-            json.dump(self.__dict__, f, indent=4)
+            json.dump(
+                obj={"checkpoints": self.checkpoints, "loras": self.loras},
+                fp=f,
+                indent=4
+            )
 
     @staticmethod
     def load(
