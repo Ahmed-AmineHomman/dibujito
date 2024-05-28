@@ -62,65 +62,77 @@ PREFIXES = {
 }
 
 
-def optimize(
+class PromptOptimizer:
+    """
+    Prompt optimizer class.
+    """
+
+    def __init__(
+            self,
+            api: str,
+            api_key: Optional[str] = None,
+            api_model: Optional[str] = None
+    ):
+        self.llm = LLM(api=api, api_key=api_key, api_model=api_model)
+
+    def optimize(
+            self,
+            description: str,
+            model: str,
+            project: Optional[str] = None
+    ) -> str:
+        """
+        Optimizes the provided prompt for the specified model.
+
+        Parameters
+        ----------
         description: str,
+            The image description to optimize.
         model: str,
-        project: Optional[str] = None
-) -> str:
-    """
-    Optimizes the provided prompt for the specified model.
+            The name of the diffusion model to optimize for.
+            Call ``optimizer_supported_models`` to get a list of the supported models by this method.
+        project: str, optional
+            The global project description, i.e. the context in which the images are generated or will be used.
 
-    Parameters
-    ----------
-    description: str,
-        The image description to optimize.
-    model: str,
-        The name of the diffusion model to optimize for.
-        Call ``optimizer_supported_models`` to get a list of the supported models by this method.
-    project: str, optional
-        The global project description, i.e. the context in which the images are generated or will be used.
+        Returns
+        -------
+        str,
+            The optimized prompt.
 
-    Returns
-    -------
-    str,
-        The optimized prompt.
+        See Also
+        --------
+        api.clients.APIClient: base class for API clients.
+        """
+        if not project:
+            project = "Generate beautiful and aesthetic images"
+        if model not in RULES.keys():
+            message = f"Model {model} not supported"
+            logging.error(message)
+            raise ValueError(message)
 
-    See Also
-    --------
-    optimizer_supported_models: returns a list of the supported models by the ``optimize`` method.
-    """
-    if not project:
-        project = "Generate beautiful and aesthetic images"
-    if model not in RULES.keys():
-        message = f"Model {model} not supported"
-        logging.error(message)
-        raise ValueError(message)
+        # define system prompt
+        system_prompt = (
+            SYSTEM_PROMPT
+            .replace("<project>", project)
+            .replace("<rules>", RULES[model])
+        )
 
-    # define system prompt
-    system_prompt = (
-        SYSTEM_PROMPT
-        .replace("<project>", project)
-        .replace("<rules>", RULES[model])
-    )
+        # reset model with updated system prompts & examples
+        self.llm.reset(system_prompt=system_prompt)
+        for i, query in enumerate(EXAMPLES.get("inputs")):
+            response = EXAMPLES.get("outputs").get(model)[i]
+            self.llm.add_exchange(query=query, response=response)
 
-    # load model
-    llm = LLM(system_prompt=system_prompt)
+        # optimize
+        try:
+            response = self.llm.chat(query=description)
+        except Exception as error:
+            message = f"error during API call: {error}"
+            logging.error(message)
+            raise ValueError(message)
 
-    # add examples
-    for i, query in enumerate(EXAMPLES.get("inputs")):
-        response = EXAMPLES.get("outputs").get(model)[i]
-        llm.add_exchange(query=query, response=response)
+        # append prefix if model is supported
+        if model in PREFIXES.keys():
+            response = f"{PREFIXES.get(model)}, {response}"
 
-    # optimize
-    try:
-        response = llm.chat(query=description)
-    except Exception as error:
-        message = f"error during API call: {error}"
-        logging.error(message)
-        raise ValueError(message)
-
-    # append prefix if model is supported
-    if model in PREFIXES.keys():
-        response = f"{PREFIXES.get(model)}, {response}"
-
-    return response
+        return response

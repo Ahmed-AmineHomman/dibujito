@@ -6,9 +6,9 @@ from typing import List
 import gradio as gr
 from PIL import Image
 
-from api import configure_logger, configure_api_keys, AppConfig, DEFAULT_CHECKPOINT_NAME
+from api import configure_logger, AppConfig, DEFAULT_CHECKPOINT_NAME
 from api.diffuser import Diffuser
-from api.optimizers import optimize
+from api.optimizers import PromptOptimizer
 
 APP_NAME = "Dibujito"
 APP_DESCRIPTION = """
@@ -25,18 +25,34 @@ Some tips:
     The LLM will take care of converting it into an optimal prompt.
 """
 
-DIFFUSER: Diffuser
 CONFIG: AppConfig
+DIFFUSER: Diffuser
+OPTIMIZER: PromptOptimizer
 
 
 def load_parameters() -> Namespace:
     """Loads the parameters from the environment."""
     parser = ArgumentParser()
     parser.add_argument(
+        "--api",
+        type=str,
+        required=False,
+        choices=["cohere"],
+        default="cohere",
+        help="API providing the LLM used in the app"
+    )
+    parser.add_argument(
+        "--api-model",
+        type=str,
+        required=False,
+        default="command-r-plus",
+        help="Model requested when calling the API (note: each API uses its own labels for its underlying models)."
+    )
+    parser.add_argument(
         "--api-key",
         type=str,
         required=False,
-        help="The Cohere API key. If not provided, its value will be searched in the COHERE_API_KEY environment variable."
+        help="API key used for authentification. If not specified, the app will look in the environment variable associated with the chosen API."
     )
     parser.add_argument(
         "--logpath",
@@ -98,7 +114,7 @@ def generate(
     logging.info(f"optimizing prompt")
     progress(progress=0.4, desc="optimizing prompt")
     try:
-        optimized_prompt = optimize(prompt, model="sd1", project=project)
+        optimized_prompt = OPTIMIZER.optimize(description=prompt, model="sd1", project=project)
     except Exception as error:
         message = f"Error (prompt optim): {error}"
         logging.error(message)
@@ -136,7 +152,7 @@ def build_ui() -> gr.Blocks:
         ]
     checkpoint = DIFFUSER.get_checkpoint()
 
-    with gr.Blocks() as app:
+    with gr.Blocks() as ui:
         gr.Markdown(f"# {APP_NAME}\n\n{APP_DESCRIPTION}")
 
         with gr.Accordion(label="Project", open=False):
@@ -145,7 +161,8 @@ def build_ui() -> gr.Blocks:
                 placeholder="describe your project here",
                 interactive=True,
                 container=True,
-                lines=2
+                lines=2,
+                scale=3
             )
         with gr.Row(equal_height=True):
             with gr.Column(scale=2):
@@ -189,18 +206,15 @@ def build_ui() -> gr.Blocks:
             inputs=[checkpoint, loras, prompt, negative_prompt, project, steps, guidance, aspect, scheduler],
             outputs=[image]
         )
-    return app
+    return ui
 
 
 if __name__ == "__main__":
     parameters = load_parameters()
-
-    # configure app
     configure_logger(logpath=parameters.logpath if parameters.logpath else None)
-    configure_api_keys(api_key=parameters.api_key if parameters.api_key else None)
 
     # generate default config file if not already existing
-    logging.info("loading app config")
+    logging.info("loading config")
     if os.path.exists("./config.json"):
         CONFIG = AppConfig.load(
             filepath="config.json",
@@ -214,8 +228,11 @@ if __name__ == "__main__":
             loras=parameters.loras_dir,
         )
 
-    logging.info(f"loading diffusion pipeline")
+    logging.info(f"loading diffuser")
     DIFFUSER = Diffuser(config=CONFIG, checkpoint=parameters.checkpoint)
+
+    logging.info("loading prompt optimizer")
+    OPTIMIZER = PromptOptimizer(api=parameters.api, api_key=parameters.api_key, api_model=parameters.api_model)
 
     logging.info(f"building UI")
     app = build_ui()

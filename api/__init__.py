@@ -1,5 +1,4 @@
 import logging
-import os
 from logging import getLogger
 from typing import Optional
 
@@ -21,9 +20,3 @@ def configure_logger(logpath: Optional[str] = None) -> None:
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     logger.addHandler(console_handler)
-
-
-def configure_api_keys(api_key: Optional[str] = None) -> None:
-    """Configure the environment variables corresponding to the provided API keys."""
-    if api_key:
-        os.environ[LLM._environment_key] = api_key

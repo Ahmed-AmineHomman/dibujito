@@ -1,40 +1,44 @@
-import logging
-import os
 from typing import Optional, List
 
-from cohere import Client, ChatMessage
+from .clients import CohereAPIClient, ConversationExchange
 
 
 class LLM:
     """Class implementing the LLM."""
     _default_system = "You are a helpful assistant."
-    _environment_key = "COHERE_API_KEY"
+    _conversation: List[ConversationExchange]
+    _supported_apis = ["cohere"]
 
     def __init__(
             self,
+            api: str,
             api_key: Optional[str] = None,
-            system_prompt: Optional[str] = None
+            api_model: Optional[str] = None,
+            system_prompt: Optional[str] = None,
     ):
-        if (not api_key) and (not os.environ.get(self._environment_key)):
-            raise ValueError("No API key provided.")
-
         # create API client
-        self.client = Client(api_key=api_key if api_key else os.environ.get(self._environment_key))
-        self.conversation: List[ChatMessage] = []
+        if api == "cohere":
+            self.client = CohereAPIClient(api_key=api_key)
+        self.conversation = []
+        self.api_model = api_model
         self.system_prompt = system_prompt if system_prompt else self._default_system
 
     def reset(
             self,
-            system_prompt: Optional[str] = None
+            system_prompt: Optional[str] = None,
+            api_model: Optional[str] = None
     ) -> None:
         """
         Resets the conversation history.
 
         If ``system_prompt`` is provided, it will override the existing system prompt.
+        If ``api_model`` is provided, it will override the existing API model.
         """
         self.conversation = []
         if system_prompt:
             self.system_prompt = system_prompt
+        if api_model:
+            self.api_model = api_model
 
     def chat(
             self,
@@ -45,30 +49,19 @@ class LLM:
 
         **Note**: the underlying model will use the conversation history when responding to the query.
         """
-        # api call
-        try:
-            response = (
-                self.client.chat(
-                    message=query,
-                    model="command-r-plus",
-                    preamble=self.system_prompt,
-                    chat_history=self.conversation,
-                )
-                .text
-            )
-        except Exception as error:
-            message = f"error during API call: {error}"
-            logging.error(message)
-            raise Exception(message)
-
-        # update conversation history
+        response = self.client.respond(
+            prompt=query,
+            conversation_history=self.conversation,
+            system_prompt=self.system_prompt,
+            model=self.api_model
+        )
         self.add_exchange(query=query, response=response)
-
         return response
 
-    def add_exchange(self, query: str, response: str):
-        """Adds the provided exchange to the conversation history"""
-        self.conversation += [
-            ChatMessage(role="USER", message=query),
-            ChatMessage(role="CHATBOT", message=response)
-        ]
+    def add_exchange(
+            self,
+            query: str,
+            response: str
+    ):
+        """Adds an exchange to the conversation history."""
+        self.conversation.append(ConversationExchange(query=query, response=response))
