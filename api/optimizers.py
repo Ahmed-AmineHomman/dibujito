@@ -1,4 +1,6 @@
 import logging
+import os
+import tomllib
 from typing import Optional
 
 from .llm import LLM
@@ -30,36 +32,6 @@ Additional Instructions:
     ALWAYS return something.
 4.  ONLY return the optimized prompt, without any explanation, introduction or any other text.
 """
-EXAMPLES = {
-    "inputs": [
-        "Woman wearing a long and elegant black dress dances alone in a deserted ballroom. The woman is dressed like a princess, and the ballroom is reminiscent of a fairy tale palace. The scene takes place at nigh.",
-        "A catmen musketeer, with complete blue musketeer uniform, walks confidently in the streets of renaissance paris by night.  The streets are deserted, the lighting is scarce, and the overall vibe is slightly oppressive: by looking at the picture, one has the feeling that something dangerous is about to happen to the cat. But the catmen looks strong, comfident and looks like he can overcome any difficulty. The picture is a fantasy character illustration such as one can find for DnD characters.",
-    ],
-    "outputs": {
-        "sd1": [
-            "woman in a long, elegant black dress, dancing alone in a deserted ballroom, digital art, fantasy style, in the style of a fairy tale palace, night scene, highly detailed, dramatic lighting, princess-like, mystical ambiance, shimmering moonlight",
-            "catmen musketeer, complete blue musketeer uniform, walks confidently in the deserted streets of Renaissance Paris by night, digital art, fantasy character illustration, in the style of DnD characters, sharp, highly detailed, scarce lighting, slightly oppressive vibe, something dangerous about to happen, strong and confident, capable of overcoming any difficulty"
-        ]
-    }
-}
-RULES = {
-    "sd1": """
-1. Structure: follow this format: [subject][medium][style][artists][resolution][additional details].
-2. Keywords: use comma-separated keywords to ensure clarity and model compatibility.
-3. Components:
-    - Subject: Describe the main subject, including its pose and action. Example: "forest at sunrise, deer, birds".
-    - Medium: Specify the material or method of artwork. Example: "digital art, oil painting, photography".
-    - Style: Indicate the artistic style. Example: "surrealism, impressionism, fantasy".
-    - Artists: Reference famous artists to influence the style. Example: "in the style of Van Gogh, anime, photorealism".
-    - Resolution: Define the sharpness and detail level. Example: "sharp, highly detailed".
-    - Additional Details: Include color palette, lighting, and overall vibe. Example: "pastel colors, golden hour, dramatic lighting, bucolic".
-4. Emphasis and Weighting: use parentheses to add emphasis or adjust weighting. Example: "(vibrant) flowers, (lush) greenery".
-5. Clarity: Ensure the prompt is concise and free from unnecessary complexity.
-""",
-}
-PREFIXES = {
-    "sd1": "masterpiece, best quality, best lighting, best shadows, very-detailed, BREAK"
-}
 
 
 class PromptOptimizer:
@@ -73,6 +45,14 @@ class PromptOptimizer:
             api_model: Optional[str] = None
     ):
         self.llm = LLM(api=api, api_model=api_model)
+
+        # get supported rules
+        self.rules = dict()
+        rule_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "data", "prompting_rules")
+        for f in os.listdir(rule_dir):
+            if f.endswith("toml"):
+                with open(os.path.join(rule_dir, f), "rb") as fp:
+                    self.rules[f.split(".")[0]] = tomllib.load(fp)
 
     def optimize(
             self,
@@ -104,22 +84,23 @@ class PromptOptimizer:
         """
         if not project:
             project = "Generate beautiful and aesthetic images"
-        if model not in RULES.keys():
+        if model not in self.rules.keys():
             message = f"Model {model} not supported"
             logging.error(message)
             raise ValueError(message)
+        rules = self.rules.get(model)
 
         # define system prompt
         system_prompt = (
             SYSTEM_PROMPT
             .replace("<project>", project)
-            .replace("<rules>", RULES[model])
+            .replace("<rules>", rules.get("rules"))
         )
 
         # reset model with updated system prompts & examples
         self.llm.reset(system_prompt=system_prompt)
-        for i, query in enumerate(EXAMPLES.get("inputs")):
-            response = EXAMPLES.get("outputs").get(model)[i]
+        for i, query in enumerate(rules.get("examples").get("inputs")):
+            response = rules.get("examples").get("outputs")[i]
             self.llm.add_exchange(query=query, response=response)
 
         # optimize
@@ -130,8 +111,10 @@ class PromptOptimizer:
             logging.error(message)
             raise ValueError(message)
 
-        # append prefix if model is supported
-        if model in PREFIXES.keys():
-            response = f"{PREFIXES.get(model)}, {response}"
+        # append prefix & suffix
+        response = f"{rules.get('additionals').get('prefix')} {response} {rules.get('additionals').get('suffix')}"
+
+        # post-processing
+        response = " ".join([w for w in response.split(" ") if len(w) > 0])
 
         return response

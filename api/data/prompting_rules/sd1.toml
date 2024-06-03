@@ -1,0 +1,29 @@
+# This defines the prompting rules to follow.
+# It should describe precisely and concisely the syntax and process to follow when designing an optimal prompt for the associated diffuser.
+rules = """
+1. Structure: follow this format: [subject][medium][style][artists][resolution][additional details].
+2. Keywords: use comma-separated keywords to ensure clarity and model compatibility.
+3. Components:
+    - Subject: Describe the main subject, including its pose and action. Example: "forest at sunrise, deer, birds".
+    - Medium: Specify the material or method of artwork. Example: "digital art, oil painting, photography".
+    - Style: Indicate the artistic style. Example: "surrealism, impressionism, fantasy".
+    - Artists: Reference famous artists to influence the style. Example: "in the style of Van Gogh, anime, photorealism".
+    - Resolution: Define the sharpness and detail level. Example: "sharp, highly detailed".
+    - Additional Details: Include color palette, lighting, and overall vibe. Example: "pastel colors, golden hour, dramatic lighting, bucolic".
+4. Emphasis and Weighting: use parentheses to add emphasis or adjust weighting. Example: "(vibrant) flowers, (lush) greenery".
+5. Clarity: Ensure the prompt is concise and free from unnecessary complexity.
+"""
+
+# This gives examples of optimal prompting from an image description in natural languages
+examples.inputs = [
+    "Woman wearing a long and elegant black dress dances alone in a deserted ballroom. The woman is dressed like a princess, and the ballroom is reminiscent of a fairy tale palace. The scene takes place at nigh.",
+    "A catmen musketeer, with complete blue musketeer uniform, walks confidently in the streets of renaissance paris by night.  The streets are deserted, the lighting is scarce, and the overall vibe is slightly oppressive: by looking at the picture, one has the feeling that something dangerous is about to happen to the cat. But the catmen looks strong, comfident and looks like he can overcome any difficulty. The picture is a fantasy character illustration such as one can find for DnD characters.",
+]
+examples.outputs = [
+    "woman in a long, elegant black dress, dancing alone in a deserted ballroom, digital art, fantasy style, in the style of a fairy tale palace, night scene, highly detailed, dramatic lighting, princess-like, mystical ambiance, shimmering moonlight",
+    "catmen musketeer, complete blue musketeer uniform, walks confidently in the deserted streets of Renaissance Paris by night, digital art, fantasy character illustration, in the style of DnD characters, sharp, highly detailed, scarce lighting, slightly oppressive vibe, something dangerous about to happen, strong and confident, capable of overcoming any difficulty"
+]
+
+# This indicates prefixes & suffixes to add to the optimal prompt.
+additionals.prefix = "masterpiece, best quality, best lighting, best shadows, very-detailed, "
+additionals.suffix = ""

@@ -126,7 +126,7 @@ class OllamaAPIClient(APIClient):
         # request api
         try:
             response = (
-                self.client.chat(model=model, messages=messages, )
+                self.client.chat(model=model, messages=messages)
                 ["message"]
                 ["content"]
             )
