@@ -1,0 +1,68 @@
+title = "Dibujito"
+description = """
+Une application web simple pour transformer vos idées créatives en images.
+Dibujito combine la puissance des grands modèles de langage (LLM) avec les modèles de diffusion texte-image pour vous aider à créer de belles images à partir de votre imagination.
+Un LLM analyse votre projet et votre prompt pour créer une version optimisée adaptée au modèle de diffusion choisi, améliorant ainsi l'esthétique de l'image générée.
+Pas besoin d'ingénierie de prompt : décrivez simplement ce que vous voulez, et l'application s'occupe du reste !
+"""
+project_title = "Description du projet"
+project_label = "Projet"
+project_description = """
+Dites à l'IA ce que vous souhaitez réaliser avec les images générées.
+Soyez spécifique et exhaustif : plus l'IA aura d'informations, mieux elle pourra optimiser vos prompts.
+"""
+project_placeholder = "Décrivez votre projet ici."
+generation_title = "Génération d'images"
+generation_description = """
+Décrivez ce que vous voulez voir dans les images générées dans la case "Prompt".
+Soyez détaillé dans votre description d'image.
+Écrivez naturellement.
+Pas besoin d'optimiser votre prompt ; l'application le fera pour vous.
+
+Listez ce que vous ne voulez pas voir dans la case "Prompt (négatif)".
+Utilisez des mots-clés séparés par des virgules ici.
+"""
+positive_prompt_label = "Prompt"
+negative_prompt_label = "Prompt (négatif)"
+optimize_prompt_label = "Optimiser le prompt"
+optimize_prompt_description = """
+Cochez pour activer l'optimisation automatique du prompt.
+"""
+generate_button_label = "Générer l'image"
+
+# diffusion parameters
+parameter_diffuser_label = "Modèle de diffusion"
+parameter_diffuser_description = """
+Choisissez votre modèle de diffusion texte-image souhaité.
+Le modèle sera téléchargé depuis le Hugging Face Hub dans votre cache local lors de la génération d'images.
+Le téléchargement du modèle ne se fait qu'une seule fois.
+"""
+parameter_optimizer_label = "Optimisation du prompt"
+parameter_optimizer_description = """
+Choisissez la cible d'optimisation du prompt.
+Cette cible correspond à la syntaxe que le modèle de diffusion accepte pour les prompts.
+La syntaxe dépend de la formation du modèle et des annotations dans le jeu de données d'images d'entraînement.
+De nombreux modèles fonctionnent mieux avec des balises et mots-clés séparés par des virgules, tandis que d'autres peuvent traiter des phrases plus longues.
+"""
+parameter_steps_label = "Nombre d'étapes"
+parameter_steps_description = """
+Déterminez le nombre d'étapes pour le processus de diffusion.
+Plus d'étapes donnent des images plus détaillées et réalistes mais nécessitent plus de temps de traitement.
+"""
+parameter_guidance_label = "Échelle de guidance"
+parameter_guidance_description = """
+Définissez l'échelle de guidance.
+Contrôle à quel point le modèle de diffusion suit votre prompt.
+Des valeurs plus élevées créent des images plus proches de votre prompt mais peuvent causer des artefacts.
+Des valeurs plus basses donnent plus de liberté artistique au modèle mais peuvent produire des images incohérentes.
+"""
+parameter_aspect_label = "Ratio d'aspect"
+parameter_aspect_description = """
+Définissez le ratio d'aspect des images générées.
+"""
+parameter_seed_label = "Graine aléatoire"
+parameter_seed_description = """
+Définissez une graine aléatoire pour la reproductibilité.
+Utilisez la même graine pour générer des images identiques avec le même prompt.
+Laissez vide pour une graine aléatoire.
+"""

@@ -65,6 +65,7 @@ def generate(
         diffuser: Diffuser,
         optimizer_api: str = "cohere",
         optimizer_model: str = "command-r",
+        seed: Optional[str] = None,
         progressbar: gr.Progress = gr.Progress()
 ) -> tuple[Image, Diffuser]:
     """Generates the image corresponding to the provided prompt."""
@@ -94,7 +95,8 @@ def generate(
             negative_prompt=negative_prompt,
             steps=steps,
             guidance=guidance,
-            aspect=aspect
+            aspect=aspect,
+            seed=eval(seed) if seed else None,
         )
     except Exception as error:
         log(message=f"Error (image gen): {error}", message_type="error")

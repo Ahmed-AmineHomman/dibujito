@@ -1,24 +1,68 @@
-title="Dibujito"
-description="""
-A simple web app allowing to turn your creative ideas into images.
-Just write what you want to draw and the app will take care of the rest.
+title = "Dibujito"
+description = """
+A simple web app to turn your creative ideas into images.
+Dibujito combines the power of Large Language Models (LLMs) with text-to-image Diffusion models to help you craft beautiful images from your imagination.
+A LLM analyzes your project and prompt to create an optimized version tailored to the chosen diffusion model, enhancing the generated image's aesthetics.
+No need for prompt engineering: just describe what you want, and the app will handle the rest!
 """
-project_label="Project"
-project_description="""
-Describe your project here.
-
-Tell the underlying AI what you wish to achieve with the generated images.
-Be specific and exhaustive: the more information the AI will know about your goal the better it will be at optimizing your prompts.
+project_title = "Project Description"
+project_label = "Project"
+project_description = """
+Tell the AI what you wish to achieve with the generated images.
+Be specific and thorough: the more information the AI has, the better it can optimize your prompts.
 """
-generation_label="Image"
-generation_description="""
-Generate your images here.
+project_placeholder = "Describe your project here."
+generation_title = "Image Generation"
+generation_description = """
+Describe what you want to see in the generated images in the "Prompt" text box.
+Be detailed in your image description.
+Write naturally.
+No need to optimize your prompt; the app will do it for you.
 
-Write whatever you wish to see in the generated images in the "prompt" text box.
-Be descriptive and detailed in your image description.
-Write as you feel it, in natural language.
-Do not bother by trying to optimize your prompt as the app will optimize it for you.
+List what you do not want to see in the "Prompt (negative)" text box.
+Use comma-separated keywords here.
+"""
+positive_prompt_label = "Prompt"
+negative_prompt_label = "Prompt (negative)"
+optimize_prompt_label = "Optimize Prompt"
+optimize_prompt_description = """
+Check to enable automatic prompt optimization.
+"""
+generate_button_label = "Generate Image"
 
-Write whatever you DO NOT wish to see in the "prompt (negative)" text box.
-In opposition to the "prompt" box, use comma-separated keywords here rather than long sentences.
+# diffusion parameters
+parameter_diffuser_label = "Diffusion Model"
+parameter_diffuser_description = """
+Choose your desired text-to-image diffusion model.
+The model will be downloaded from the Hugging Face Hub to your local cache when generating images.
+Model download occurs only once.
+"""
+parameter_optimizer_label = "Prompt Optimization"
+parameter_optimizer_description = """
+Choose the prompt optimization target.
+This target corresponds to the syntax the diffusion model accepts for prompts.
+Syntax depends on model training and annotations in the training image dataset.
+Many models work better with comma-separated tags and keywords, while others can handle longer sentences.
+"""
+parameter_steps_label = "Number of Steps"
+parameter_steps_description = """
+Determine the number of steps for the diffusion process.
+More steps result in more detailed and realistic images but require longer processing times.
+"""
+parameter_guidance_label = "Guidance Scale"
+parameter_guidance_description = """
+Set the guidance scale.
+Controls how closely the diffusion model follows your prompt.
+Higher values create images closer to your prompt but may cause artifacts.
+Lower values give the model more artistic freedom but can yield inconsistent images.
+"""
+parameter_aspect_label = "Aspect Ratio"
+parameter_aspect_description = """
+Set the aspect ratio of the generated images.
+"""
+parameter_seed_label = "Random Seed"
+parameter_seed_description = """
+Set a random seed for reproducibility.
+Use the same seed to generate identical images with the same prompt.
+Leave empty for a random seed.
 """

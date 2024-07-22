@@ -48,94 +48,106 @@ def build_ui(
         with gr.Accordion(label=doc.get("project_label"), open=False):
             gr.Markdown(f"## {doc.get('project_title')}\n\n{doc.get('project_description')}")
             project = gr.Text(
+                label=None,
                 interactive=True,
-                container=True,
-                lines=2,
+                container=False,
+                placeholder=doc.get("project_placeholder"),
             )
+
+        gr.Markdown(f"## {doc.get('generation_title')}\n\n{doc.get('generation_description')}")
         with gr.Row():
-            with gr.Column(scale=2):
+            with gr.Column(scale=3, variant="default"):
                 image = gr.Image(
                     label="Image",
                     format="png",
                     type="pil",
-                    container=True,
+                    container=False,
                     height=1024,
-                    width=1024
+                    width=1024,
                 )
                 with gr.Row(equal_height=True):
-                    with gr.Column(scale=3):
-                        prompt = gr.Text(
+                    with gr.Column(scale=3, variant="default"):
+                        prompt = gr.TextArea(
+                            label=doc.get("positive_prompt_label"),
+                            interactive=True,
+                            container=True,
+                            lines=3,
+                            max_lines=10
+                        )
+                        negative_prompt = gr.TextArea(
                             label=doc.get("negative_prompt_label"),
                             interactive=True,
                             container=True,
+                            lines=1,
+                            max_lines=3
                         )
-                        negative_prompt = gr.Text(
-                            label=doc.get("negative_prompt_label"),
-                            interactive=True,
-                            container=True,
-                        )
-                    with gr.Column(scale=1):
+                    with gr.Column(scale=1, variant="default"):
                         with gr.Row():
-                            gr.Markdown(doc.get("parameter_optimize_prompt_description"))
+                            gr.Markdown(doc.get("optimize_prompt_description"))
                             optimize_prompt = gr.Checkbox(
-                                label=doc.get("parameter_optimize_prompt_label"),
+                                label=doc.get("optimize_prompt_label"),
                                 value=True,
                                 interactive=True,
+                                container=False,
                             )
                         generate_btn = gr.Button(
                             value=doc.get("generate_button_label"),
                             variant="primary",
                         )
-            with gr.Column(scale=1, variant="panel"):
-                with gr.Row():
-                    gr.Markdown(doc.get("parameter_diffuser_description"))
-                    model = gr.Dropdown(
-                        label=doc.get("parameter_diffuser_label"),
-                        choices=Diffuser.get_supported_models(),
-                        value=Diffuser.get_supported_models()[0],
-                        multiselect=False
-                    )
-                with gr.Row():
-                    gr.Markdown(doc.get("parameter_optimizer_description"))
-                    target_model = gr.Dropdown(
-                        label=doc.get("parameter_optimizer_label"),
-                        choices=PromptOptimizer.get_supported_rules(),
-                        value=PromptOptimizer.get_supported_rules()[0],
-                        multiselect=False
-                    )
-                with gr.Row():
-                    gr.Markdown(doc.get("parameter_steps_description"))
-                    steps = gr.Slider(
-                        label=doc.get("parameter_steps_label"),
-                        minimum=1,
-                        maximum=50,
-                        value=25,
-                        step=1
-                    )
-                with gr.Row():
-                    gr.Markdown(doc.get("parameter_guidance_description"))
-                    guidance = gr.Slider(
-                        label=doc.get("parameter_guidance_label"),
-                        minimum=1,
-                        maximum=15,
-                        value=7,
-                        step=0.5
-                    )
-                with gr.Row():
-                    gr.Markdown(doc.get("parameter_aspect_description"))
-                    aspect = gr.Dropdown(
-                        label=doc.get("parameter_aspect_label"),
-                        choices=Diffuser.get_supported_aspects(),
-                        value=Diffuser.get_supported_aspects()[0],
-                    )
+            with gr.Column(scale=1, variant="default"):
+                model = gr.Dropdown(
+                    label=doc.get("parameter_diffuser_label"),
+                    info=doc.get("parameter_diffuser_description"),
+                    choices=Diffuser.get_supported_models(),
+                    value=Diffuser.get_supported_models()[0],
+                    multiselect=False
+                )
+                target_model = gr.Dropdown(
+                    label=doc.get("parameter_optimizer_label"),
+                    info=doc.get("parameter_optimizer_description"),
+                    choices=PromptOptimizer.get_supported_rules(),
+                    value=PromptOptimizer.get_supported_rules()[0],
+                    multiselect=False
+                )
+                steps = gr.Slider(
+                    label=doc.get("parameter_steps_label"),
+                    info=doc.get("parameter_steps_description"),
+                    minimum=1,
+                    maximum=50,
+                    value=25,
+                    step=1
+                )
+                guidance = gr.Slider(
+                    label=doc.get("parameter_guidance_label"),
+                    info=doc.get("parameter_guidance_description"),
+                    minimum=1,
+                    maximum=15,
+                    value=7,
+                    step=0.5
+                )
+                aspect = gr.Dropdown(
+                    label=doc.get("parameter_aspect_label"),
+                    info=doc.get("parameter_aspect_description"),
+                    choices=Diffuser.get_supported_aspects(),
+                    value=Diffuser.get_supported_aspects()[0],
+                )
+                seed = gr.Text(
+                    label=doc.get("parameter_seed_label"),
+                    info=doc.get("parameter_seed_description"),
+                    value=None,
+                    lines=1,
+                    max_lines=1,
+                )
 
         diffuser = gr.State(value=DIFFUSER)
 
         # UI logic
         generate_btn.click(
             fn=generate,
-            inputs=[model, prompt, negative_prompt, steps, guidance, aspect, project, optimize_prompt, target_model,
-                    diffuser],
+            inputs=[
+                model, prompt, negative_prompt, steps, guidance, aspect,
+                project, optimize_prompt, target_model, diffuser, seed
+            ],
             outputs=[image, diffuser]
         )
     return app
