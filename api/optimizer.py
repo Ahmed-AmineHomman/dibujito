@@ -1,9 +1,9 @@
 import logging
 import os
 import tomllib
-from typing import Optional
+from typing import Optional, List
 
-from .llm import LLM
+from .clients import BaseClient, ConversationExchange, APIClientFactory
 
 SYSTEM_PROMPT = """
 You are an AI assistant tasked with optimizing user-provided image descriptions to create highly effective prompts for a specific text-to-image diffusion model.
@@ -38,40 +38,45 @@ class PromptOptimizer:
     """
     Prompt optimizer class.
     """
+    rules_dir: str = os.path.join(os.path.abspath(os.path.dirname(__file__)), "data", "prompting_rules")
+    client: BaseClient
 
     def __init__(
             self,
             api: str,
-            api_model: Optional[str] = None
     ):
-        self.llm = LLM(api=api, api_model=api_model)
+        self.client = APIClientFactory.create(api=api)
 
-        # get supported rules
-        self.rules = dict()
-        rule_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "data", "prompting_rules")
-        for f in os.listdir(rule_dir):
-            if f.endswith("toml"):
-                with open(os.path.join(rule_dir, f), "rb") as fp:
-                    self.rules[f.split(".")[0]] = tomllib.load(fp)
+    @staticmethod
+    def get_supported_rules() -> List[str]:
+        """
+        Returns a list of supported prompting rules.
+        """
+        rules = os.listdir(PromptOptimizer.rules_dir)
+        rules = [f for f in rules if os.path.isfile(os.path.join(PromptOptimizer.rules_dir, f))]
+        rules = [f for f in rules if f.endswith(".toml")]
+        return [f.split(".")[0] for f in rules]
 
     def optimize(
             self,
-            description: str,
-            model: str,
-            project: Optional[str] = None
+            prompt: str,
+            target: str,
+            project: Optional[str] = None,
+            model: Optional[str] = None,
     ) -> str:
         """
         Optimizes the provided prompt for the specified model.
 
         Parameters
         ----------
-        description: str,
+        prompt: str,
             The image description to optimize.
-        model: str,
+        target: str
             The name of the diffusion model to optimize for.
-            Call ``optimizer_supported_models`` to get a list of the supported models by this method.
         project: str, optional
             The global project description, i.e. the context in which the images are generated or will be used.
+        model: str, optional
+            The LLM to use for optimization.
 
         Returns
         -------
@@ -84,11 +89,14 @@ class PromptOptimizer:
         """
         if not project:
             project = "Generate beautiful and aesthetic images"
-        if model not in self.rules.keys():
-            message = f"Model {model} not supported"
+        if target not in self.get_supported_rules():
+            message = f"Model {target} not supported"
             logging.error(message)
             raise ValueError(message)
-        rules = self.rules.get(model)
+
+        # retrieve prompting rules for the specified model
+        with open(os.path.join(self.rules_dir, f"{target}.toml"), "rb") as fp:
+            rules = tomllib.load(fp)
 
         # define system prompt
         system_prompt = (
@@ -97,24 +105,29 @@ class PromptOptimizer:
             .replace("<rules>", rules.get("rules"))
         )
 
-        # reset model with updated system prompts & examples
-        self.llm.reset(system_prompt=system_prompt)
+        # compute conversation history
+        conversation_history = []
         for i, query in enumerate(rules.get("examples").get("inputs")):
             response = rules.get("examples").get("outputs")[i]
-            self.llm.add_exchange(query=query, response=response)
+            conversation_history += [ConversationExchange(query=query, response=response)]
 
-        # optimize
+        # compute response
         try:
-            response = self.llm.chat(query=description)
+            optimized_prompt = self.client.respond(
+                model=model,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                conversation_history=conversation_history,
+            )
         except Exception as error:
             message = f"error during API call: {error}"
             logging.error(message)
             raise ValueError(message)
 
         # append prefix & suffix
-        response = f"{rules.get('additionals').get('prefix')} {response} {rules.get('additionals').get('suffix')}"
+        optimized_prompt = f"{rules.get('additionals').get('prefix')} {optimized_prompt} {rules.get('additionals').get('suffix')}"
 
         # post-processing
-        response = " ".join([w for w in response.split(" ") if len(w) > 0])
+        optimized_prompt = " ".join([w for w in optimized_prompt.split(" ") if len(w) > 0])
 
-        return response
+        return optimized_prompt

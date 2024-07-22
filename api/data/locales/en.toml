@@ -1,0 +1,24 @@
+title="Dibujito"
+description="""
+A simple web app allowing to turn your creative ideas into images.
+Just write what you want to draw and the app will take care of the rest.
+"""
+project_label="Project"
+project_description="""
+Describe your project here.
+
+Tell the underlying AI what you wish to achieve with the generated images.
+Be specific and exhaustive: the more information the AI will know about your goal the better it will be at optimizing your prompts.
+"""
+generation_label="Image"
+generation_description="""
+Generate your images here.
+
+Write whatever you wish to see in the generated images in the "prompt" text box.
+Be descriptive and detailed in your image description.
+Write as you feel it, in natural language.
+Do not bother by trying to optimize your prompt as the app will optimize it for you.
+
+Write whatever you DO NOT wish to see in the "prompt (negative)" text box.
+In opposition to the "prompt" box, use comma-separated keywords here rather than long sentences.
+"""

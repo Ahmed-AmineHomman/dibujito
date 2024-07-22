@@ -2,9 +2,18 @@ import logging
 import os
 from typing import Optional, List, Dict
 
+from enum import Enum
 import torch
 from PIL import Image
-from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, SchedulerMixin
+from diffusers import DiffusionPipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, SchedulerMixin, AutoPipelineForText2Image
+
+class DiffuserSpecs:
+    deposit: str
+    architecture: str
+
+    def __init__(self, deposit: str, architecture: str):
+        self.deposit = deposit
+        self.architecture = architecture
 
 
 class Diffuser:
@@ -13,106 +22,62 @@ class Diffuser:
 
     It is based on the ``diffusers`` library, and is compatible with any stable-diffusion 1.5 based models.
     """
-    pipeline: StableDiffusionPipeline
+    pipeline: DiffusionPipeline
     cuda: bool
 
-    _checkpoint: Optional[str] = None
-    _supported_schedulers: Dict[str, SchedulerMixin] = {
-        "euler_ancestral": EulerAncestralDiscreteScheduler,
-        "euler": EulerDiscreteScheduler
+    _model: Optional[DiffuserSpecs] = None
+    _supported_models: Dict[str, DiffuserSpecs] = {
+        "sd1": DiffuserSpecs(deposit="runwayml/stable-diffusion-v1-5", architecture="sd1"),
+        "dreamshaper": DiffuserSpecs(deposit="lykon/dreamshaper-8", architecture="sd1"),
+        "orangemix": DiffuserSpecs(deposit="WarriorMama777/OrangeMixs", architecture="sd1"),
+        "sdxl": DiffuserSpecs(deposit="stabilityai/stable-diffusion-xl-base-1.0", architecture="sdxl"),
+        "animagine": DiffuserSpecs(deposit="cagliostrolab/animagine-xl-3.1", architecture="sdxl"),
+        "playground": DiffuserSpecs(deposit="playgroundai/playground-v2.5-1024px-aesthetic", architecture="sdxl"),
+        "sdxl-turbo": DiffuserSpecs(deposit="stabilityai/sdxl-turbo", architecture="sdxl-turbo"),
+    }
+    _aspect_mapper = {
+        "sd1": {"square": (512, 512), "portrait": (768, 512), "landscape": (512, 768)},
+        **{k: {
+            "square": (1024, 1024),
+            "portrait": (1280, 960),
+            "landscape": (960, 1280)
+        } for k in ["sdxl", "sdxl-turbo", "playground"]}
     }
 
     def __init__(
             self,
-            checkpoint_path: str
+            model: Optional[str] = None
     ):
-        self._embeddings = []
         self.cuda = torch.cuda.is_available()
-        self.load_checkpoint(filepath=checkpoint_path)
+        if model:
+            self.load_model(model=model)
 
-    def get_checkpoint(self) -> str:
-        """Returns the currently loaded checkpoint."""
-        return self._checkpoint
+    @staticmethod
+    def get_supported_models() -> List[str]:
+        return [k for k in Diffuser._supported_models.keys()]
 
-    def get_loaded_loras(self) -> List[str]:
-        """Returns the list of already loaded LoRAs. """
-        adapters = self.pipeline.get_list_adapters()
-        adapters = set(adapters.get("text_encoder", []) + adapters.get("unet", []))
-        return list(adapters)
+    @staticmethod
+    def get_supported_aspects() -> List[str]:
+        return ["square", "portrait", "landscape"]
 
-    def get_active_loras(self) -> List[str]:
-        """Returns the list of currently active LoRAs. """
-        return self.pipeline.get_active_adapters()
-
-    def load_checkpoint(self, filepath: str) -> None:
-        """
-        Resets the pipeline with the provided checkpoint.
-
-        **Warning**: loading a new checkpoints will drop all loras & embeddings from the pipeline.
-        """
-        model = os.path.basename(filepath).split(".")[0]
-        if model != self._checkpoint:
-            params = self._set_pipeline_parameters()
-            self.pipeline = StableDiffusionPipeline.from_single_file(filepath, **params)
-            if self.cuda:
-                self.pipeline = self.pipeline.to("cuda")
-                self.pipeline.enable_model_cpu_offload()
-            self._checkpoint = model
-
-    def load_lora(self, filepath: str) -> None:
-        """Adds the LoRa corresponding to the provided filename to the pipeline."""
-        model = os.path.basename(filepath).split(".")[0]
-
-        # load lora weights if not already loaded
-        if model not in self.get_loaded_loras():
-            self.pipeline.load_lora_weights(
-                pretrained_model_name_or_path_or_dict=filepath,
-                adapter_name=model
-            )
-
-        # set lora as active
-        active_adapters = self.pipeline.get_active_adapters()
-        if model not in active_adapters:
-            self.pipeline.set_active_adapters(active_adapters + [model])
-
-    def unload_lora(self, model: str) -> None:
-        """Removes the LoRa corresponding to the provided filename from the pipeline."""
-        if model not in self.get_loaded_loras():
-            logging.warning(f"lora '{model}' not loaded -> skipping unload")
-
-        # set lora as inactive
-        active_adapters = self.pipeline.get_active_adapters()
-        if model in active_adapters:
-            self.pipeline.set_active_adapters(active_adapters.remove(model))
-
-        # delete lora weights
-        self.pipeline.delete_adapters(adapter_names=model)
-
-    def set_scheduler(self, scheduler: str) -> None:
-        """
-        Sets the pipeline scheduler.
-
-        Parameters
-        ----------
-        scheduler: str, {"euler", "euler-ancestral"}
-            The name of the scheduler to use.
-
-        Returns
-        -------
-        None
-        """
-        if scheduler not in self._supported_schedulers.keys():
-            message = f"unsupported scheduler '{scheduler}"
+    def load_model(self, model: str) -> None:
+        """ Resets the pipeline with the provided model. """
+        if model not in self.get_supported_models():
+            message = f"Unsupported model '{model}'"
             logging.error(message)
             raise ValueError(message)
-        return self._supported_schedulers[scheduler].from_pretrained(
-            "runwayml/stable-diffusion-v1-5",
-            subfolder="scheduler"
-        )
+        if self._supported_models.get(model) == self._model:
+            pass
 
-    def get_supported_schedulers(self) -> List[str]:
-        """Returns a list of supported schedulers."""
-        return list(self._supported_schedulers.keys())
+        self._model = self._supported_models.get(model)
+        params = self._set_pipeline_parameters()
+        self.pipeline = AutoPipelineForText2Image.from_pretrained(
+            self._model.deposit,
+            **params
+        )
+        if self.cuda:
+            self.pipeline = self.pipeline.to("cuda")
+            self.pipeline.enable_model_cpu_offload()
 
     def imagine(
             self,
@@ -121,27 +86,25 @@ class Diffuser:
             aspect: str = "square",
             steps: int = 20,
             guidance: float = 7,
+            seed: int = None,
     ) -> Image:
         """Generates an image corresponding to the provided prompt."""
         # consistency checks
-        if aspect not in ["square", "landscape", "portrait"]:
+        if aspect not in self.get_supported_aspects():
             message = f"unsupported format '{aspect}'"
             logging.error(message)
             raise ValueError(message)
 
         # define diffusion parameters
-        params = dict(prompt=prompt, num_inference_steps=steps, guidance_scale=guidance)
-        if negative_prompt:
-            params["negative_prompt"] = f"<BadDream>, {negative_prompt}"
-        if aspect == "square":
-            params["width"] = 512
-            params["height"] = 512
-        if aspect == "portrait":
-            params["width"] = 512
-            params["height"] = 768
-        if aspect == "landscape":
-            params["width"] = 768
-            params["height"] = 512
+        params = dict(
+            prompt=prompt,
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            width=self._aspect_mapper[self._model.architecture]["square"][0],
+            height=self._aspect_mapper[self._model.architecture]["square"][1],
+            generator=torch.Generator().manual_seed(seed) if seed else torch.Generator(),
+            negative_prompt=negative_prompt,
+        )
 
         # generate image
         try:
@@ -154,19 +117,9 @@ class Diffuser:
         return image
 
     def _set_pipeline_parameters(
-            self,
-            stochastic: bool = False
+            self
     ) -> dict:
-        # define scheduler
-        repo_id = "runwayml/stable-diffusion-v1-5"
-        if stochastic:
-            scheduler = EulerDiscreteScheduler.from_config(repo_id, subfolder="scheduler")
-        else:
-            scheduler = EulerAncestralDiscreteScheduler.from_config(repo_id, subfolder="scheduler")
-        params = dict(
-            use_safetensors=True,
-            scheduler=scheduler
-        )
+        params = dict()
         if self.cuda:
             params["device"] = "auto"
         return params
