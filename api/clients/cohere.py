@@ -32,8 +32,8 @@ class CohereAPIClient(BaseClient):
         chat_history = []
         for exchange in conversation_history:
             chat_history += [
-                ChatMessage(role="USER", message=exchange.query),
-                ChatMessage(role="ASSISTANT", message=exchange.response)
+                ChatMessage(role="User", message=exchange.query),
+                ChatMessage(role="Chatbot", message=exchange.response)
             ]
 
         # request api

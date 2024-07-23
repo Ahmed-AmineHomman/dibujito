@@ -1,19 +1,31 @@
 import logging
-import os
 from typing import Optional, List, Dict
 
-from enum import Enum
 import torch
 from PIL import Image
-from diffusers import DiffusionPipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, SchedulerMixin, AutoPipelineForText2Image
+from diffusers import DiffusionPipeline, AutoPipelineForText2Image
+
 
 class DiffuserSpecs:
+    name: str
     deposit: str
     architecture: str
+    fp16: bool
+    safetensors: bool
 
-    def __init__(self, deposit: str, architecture: str):
+    def __init__(
+            self,
+            name: str,
+            deposit: str,
+            architecture: str,
+            fp16: bool = False,
+            safetensors: bool = False,
+    ):
+        self.name = name
         self.deposit = deposit
         self.architecture = architecture
+        self.fp16 = fp16
+        self.safetensors = safetensors
 
 
 class Diffuser:
@@ -27,21 +39,27 @@ class Diffuser:
 
     _model: Optional[DiffuserSpecs] = None
     _supported_models: Dict[str, DiffuserSpecs] = {
-        "sd1": DiffuserSpecs(deposit="runwayml/stable-diffusion-v1-5", architecture="sd1"),
-        "dreamshaper": DiffuserSpecs(deposit="lykon/dreamshaper-8", architecture="sd1"),
-        "orangemix": DiffuserSpecs(deposit="WarriorMama777/OrangeMixs", architecture="sd1"),
-        "sdxl": DiffuserSpecs(deposit="stabilityai/stable-diffusion-xl-base-1.0", architecture="sdxl"),
-        "animagine": DiffuserSpecs(deposit="cagliostrolab/animagine-xl-3.1", architecture="sdxl"),
-        "playground": DiffuserSpecs(deposit="playgroundai/playground-v2.5-1024px-aesthetic", architecture="sdxl"),
-        "sdxl-turbo": DiffuserSpecs(deposit="stabilityai/sdxl-turbo", architecture="sdxl-turbo"),
+        "dreamshaper": DiffuserSpecs(
+            name="dreamshaper",
+            deposit="lykon/dreamshaper-8",
+            architecture="sd1",
+            fp16=True,
+            safetensors=True,
+        ),
+        "playground": DiffuserSpecs(
+            name="playground",
+            deposit="playgroundai/playground-v2.5-1024px-aesthetic",
+            architecture="sdxl",
+            fp16=True,
+            safetensors=True,
+        ),
     }
     _aspect_mapper = {
         "sd1": {"square": (512, 512), "portrait": (768, 512), "landscape": (512, 768)},
-        **{k: {
-            "square": (1024, 1024),
-            "portrait": (1280, 960),
-            "landscape": (960, 1280)
-        } for k in ["sdxl", "sdxl-turbo", "playground"]}
+        **{
+            k: {"square": (1024, 1024), "portrait": (1280, 960), "landscape": (960, 1280)}
+            for k in ["sdxl", "sdxl-turbo", "playground"]
+        }
     }
 
     def __init__(
@@ -69,15 +87,16 @@ class Diffuser:
         if self._supported_models.get(model) == self._model:
             pass
 
-        self._model = self._supported_models.get(model)
-        params = self._set_pipeline_parameters()
-        self.pipeline = AutoPipelineForText2Image.from_pretrained(
-            self._model.deposit,
-            **params
-        )
-        if self.cuda:
-            self.pipeline = self.pipeline.to("cuda")
-            self.pipeline.enable_model_cpu_offload()
+        if (self._model is None) or (model != self._model.name):
+            self._model = self._supported_models.get(model)
+            params = self._set_pipeline_parameters()
+            self.pipeline = AutoPipelineForText2Image.from_pretrained(
+                self._model.deposit,
+                **params
+            )
+            if self.cuda:
+                self.pipeline = self.pipeline.to("cuda")
+                self.pipeline.enable_model_cpu_offload()
 
     def imagine(
             self,
@@ -94,6 +113,10 @@ class Diffuser:
             message = f"unsupported format '{aspect}'"
             logging.error(message)
             raise ValueError(message)
+        if self._model is None:
+            message = "No model loaded. Please call `load_model` to load a model first."
+            logging.error(message)
+            raise RuntimeError(message)
 
         # define diffusion parameters
         params = dict(
@@ -122,4 +145,9 @@ class Diffuser:
         params = dict()
         if self.cuda:
             params["device"] = "auto"
+            if self._model.fp16:
+                params["variant"] = "fp16"
+                params["torch_dtype"] = torch.float16
+        if self._model.safetensors:
+            params["use_safetensors"] = True
         return params

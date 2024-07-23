@@ -30,6 +30,13 @@ def load_parameters() -> Namespace:
         help="API providing the LLM used in the app"
     )
     parser.add_argument(
+        "--api-model",
+        type=str,
+        required=False,
+        default="command-r",
+        help="Model of the LLM used in the app (varies according to the selected API)"
+    )
+    parser.add_argument(
         "--logpath",
         type=str,
         required=False,
@@ -40,6 +47,8 @@ def load_parameters() -> Namespace:
 
 def build_ui(
         doc: dict,
+        api: str,
+        api_model: str
 ) -> gr.Blocks:
     """Builds the UI."""
     with gr.Blocks() as app:
@@ -140,13 +149,15 @@ def build_ui(
                 )
 
         diffuser = gr.State(value=DIFFUSER)
+        optimizer_api = gr.State(api)
+        optimizer_model = gr.State(api_model)
 
         # UI logic
         generate_btn.click(
             fn=generate,
             inputs=[
                 model, prompt, negative_prompt, steps, guidance, aspect,
-                project, optimize_prompt, target_model, diffuser, seed
+                project, optimize_prompt, target_model, diffuser, optimizer_api, optimizer_model, seed
             ],
             outputs=[image, diffuser]
         )
@@ -164,7 +175,11 @@ if __name__ == "__main__":
     ui_doc = get_ui_doc(language=parameters.language)
 
     logging.info(f"building UI")
-    app = build_ui(doc=ui_doc)
+    app = build_ui(
+        doc=ui_doc,
+        api=parameters.api,
+        api_model=parameters.api_model,
+    )
 
     logging.info("running app")
     app.launch()
