@@ -102,10 +102,11 @@ def generate_image(
         aspect: str = "square",
         seed: Optional[str] = None,
         optimize_prompt: bool = True,
-        optimizer_target: Optional[str] = None,
         llm: Optional[str] = None,
+        optimizer_target: Optional[str] = None,
+        project: Optional[str] = None,
         progressbar: gr.Progress = gr.Progress()
-) -> Image:
+) -> tuple[Image, str]:
     """Generates the image corresponding to the provided prompt."""
     # consistency checks
     if optimize_prompt:
@@ -130,8 +131,18 @@ def generate_image(
         except Exception as error:
             log(message=f"error (model loading): {error}", message_type="error")
 
+        # enhance prompt by adding details
+        log(message="enhancing prompt", progress=0.0, progressbar=progressbar)
+        try:
+            optimized_prompt = (
+                PromptWriter(llm=LLM_MODEL)
+                .optimize(prompt=prompt, goal=project)
+            )
+        except Exception as error:
+            log(message=f"Error (prompt optimization): {error}", message_type="error")
+
         # optimize prompt for target model
-        log(message="enhancing prompt", progress=0., progressbar=progressbar)
+        log(message="enhancing prompt", progress=0.0, progressbar=progressbar)
         try:
             optimized_prompt = (
                 PromptOptimizer(llm=LLM_MODEL)
@@ -154,4 +165,4 @@ def generate_image(
     except Exception as error:
         log(message=f"Error (image gen): {error}", message_type="error")
 
-    return image
+    return image, optimized_prompt

@@ -17,21 +17,15 @@ project_placeholder = "Describe your project here."
 # Generation section
 generation_title = "Image Generation"
 generation_description = """
-Describe what you want to see in the generated images in the "Prompt" text box.
+Describe what you want to see in the generated images in the text box.
 Be detailed in your image description.
 Write naturally.
 No need to optimize your prompt; the app will do it for you.
-
-List what you do not want to see in the "Prompt (negative)" text box.
-Use comma-separated keywords here.
 """
 image_label = "Image"
-description_label = "Image description"
-description_placeholder = "Describe what you want to see here..."
 prompt_label = "Prompt"
-prompt_placeholder = "Write your prompt here or click 'Generate Prompt' to generate one from the image description"
-generate_prompt_button = "Generate Prompt"
-generate_image_button = "Generate Image"
+prompt_placeholder = "Write what you want your image to display here..."
+generate_image_button = "Generate"
 optimizer_box_label = "Prompt Optimization"
 optimizer_box_description = """
 Check to activate the automatic prompt optimization.

@@ -5,7 +5,7 @@ import gradio as gr
 
 from api import configure_logger, get_ui_doc, get_supported_llms, get_supported_diffusers, get_supported_optimizers, \
     get_supported_image_ratios
-from app_api import generate_prompt, generate_image
+from app_api import generate_image
 
 
 def load_parameters() -> Namespace:
@@ -47,17 +47,8 @@ def build_ui(
             with gr.Column(scale=3, variant="default"):
                 with gr.Row(equal_height=True):
                     with gr.Column(scale=3, variant="default"):
-                        gr.Markdown(f"#### {doc.get('description_label')}")
-                        description = gr.TextArea(
-                            placeholder=doc.get("description_placeholder"),
-                            interactive=True,
-                            container=False,
-                            lines=2,
-                            max_lines=5,
-                            scale=3
-                        )
-                        gr.Markdown(f"#### {doc.get('prompt_label')}")
                         prompt = gr.TextArea(
+                            label=doc.get('prompt_label'),
                             placeholder=doc.get("prompt_placeholder"),
                             interactive=True,
                             container=False,
@@ -72,10 +63,6 @@ def build_ui(
                             value=True,
                             container=False,
                             interactive=True,
-                        )
-                        generate_prompt_btn = gr.Button(
-                            value=doc.get("generate_prompt_button"),
-                            variant="secondary",
                         )
                         generate_image_btn = gr.Button(
                             value=doc.get("generate_image_button"),
@@ -149,17 +136,14 @@ def build_ui(
                     maximum=1000000000,
                     step=1,
                 )
+        optimized_prompt = gr.State("")
 
         # UI logic
-        generate_prompt_btn.click(
-            fn=generate_prompt,
-            inputs=[llm, description, project, optimizer],
-            outputs=[prompt]
-        )
         generate_image_btn.click(
             fn=generate_image,
-            inputs=[diffuser, prompt, negative_prompt, steps, guidance, aspect, seed, optimize_prompt, optimizer, llm],
-            outputs=[image]
+            inputs=[diffuser, prompt, negative_prompt, steps, guidance, aspect, seed, optimize_prompt, llm, optimizer,
+                    project],
+            outputs=[image, optimized_prompt]
         )
     return app
 
