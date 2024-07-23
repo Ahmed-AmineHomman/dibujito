@@ -3,34 +3,37 @@ import os
 import tomllib
 from typing import Optional, List
 
-from .clients import BaseClient, ConversationExchange, APIClientFactory
+from .clients import BaseClient, APIClientFactory
 
 SYSTEM_PROMPT = """
-You are an AI assistant tasked with optimizing user-provided image descriptions to create highly effective prompts for a specific text-to-image diffusion model.
-Your role in the overall process is to:
+You are a prompt optimizer designed to transform user-provided scene/image descriptions into optimized prompts for text-to-image diffusion models.
+Your task is to enhance the given descriptions by adding well-chosen keywords, sentences, and any necessary details to create aesthetically pleasing and well-composed images.
+Follow these guidelines:
 
-1.  Understand the user's project and the intended use of the images.
-2.  Follow the prompting rules specific to the chosen diffusion model.
-3.  Enhance the image descriptions by adding aesthetic details that are consistent with the user's project.
-4.  Return ONLY the optimized prompt without any explanation or introduction.
+Understand User Intent:
+    Analyze the provided scene/image description and the user’s project description (if available).
+    Use this information to infer the desired outcome.
+Enhance Descriptions:
+    Add relevant details, keywords, and sentences to the prompt to improve the aesthetics and composition of the resulting image.
+    Ensure the prompt is detailed enough to guide the diffuser effectively.
+Default Enhancements:
+    If the user’s description is vague or minimal (e.g., "a cat"), enrich it by adding details about the setting, background, lighting, and other elements that would enhance the image.
+Follow Provided Rules:
+    Ensure that the optimized prompt adheres to the specific prompting rules of the targeted diffuser model provided below.
+Project Alignment:
+    Ensure that the optimized prompt aligns with the provided user's project goals.
+    This project description should be used to guide the optimization.
+Output Format:
 
-User's project:
-
+    The optimized prompt must be plain text only, with no additional text, introductions, or interpretations.
+---
+User's project goals:
 <project>
-
+---
 Prompting rules:
-
 <rules>
-
-Additional Instructions:
-
-1.  If the description leaves room for imagination, fill it with details of your choosing.
-2.  Ensure that your optimized prompt is consistent with the user's project, description and satisfy the prompting rules.
-3.  If the description is unclear, do your best and return something.
-    If the project is unclear, do your best and return something.
-    If the prompting rules are unclear, do your best and return something.
-    ALWAYS return something.
-4.  ONLY return the optimized prompt, without any explanation, introduction or any other text.
+---
+Remember, your goal is to craft prompts that will produce beautiful and engaging images, adhering to the provided prompting rules and the user's project goals.
 """
 
 
@@ -96,20 +99,20 @@ class PromptOptimizer:
 
         # retrieve prompting rules for the specified model
         with open(os.path.join(self.rules_dir, f"{target}.toml"), "rb") as fp:
-            rules = tomllib.load(fp)
+            config = tomllib.load(fp)
+
+        # define prompting rules
+        rules = f"{config.get('rules')}\n\nExamples:\n"
+        for i, query in enumerate(config.get("examples").get("inputs")):
+            response = config.get("examples").get("outputs")[i]
+            rules += f"\ninput: {query}\noutput: {response}\n"
 
         # define system prompt
         system_prompt = (
             SYSTEM_PROMPT
             .replace("<project>", project)
-            .replace("<rules>", rules.get("rules"))
+            .replace("<rules>", rules)
         )
-
-        # compute conversation history
-        conversation_history = []
-        for i, query in enumerate(rules.get("examples").get("inputs")):
-            response = rules.get("examples").get("outputs")[i]
-            conversation_history += [ConversationExchange(query=query, response=response)]
 
         # compute response
         try:
@@ -117,7 +120,7 @@ class PromptOptimizer:
                 model=model,
                 prompt=prompt,
                 system_prompt=system_prompt,
-                conversation_history=conversation_history,
+                conversation_history=[],
             )
         except Exception as error:
             message = f"error during API call: {error}"
@@ -125,7 +128,7 @@ class PromptOptimizer:
             raise ValueError(message)
 
         # append prefix & suffix
-        optimized_prompt = f"{rules.get('additionals').get('prefix')} {optimized_prompt} {rules.get('additionals').get('suffix')}"
+        optimized_prompt = f"{config.get('additionals').get('prefix')} {optimized_prompt} {config.get('additionals').get('suffix')}"
 
         # post-processing
         optimized_prompt = " ".join([w for w in optimized_prompt.split(" ") if len(w) > 0])
