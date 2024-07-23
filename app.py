@@ -3,12 +3,9 @@ from argparse import ArgumentParser, Namespace
 
 import gradio as gr
 
-from api import configure_logger, get_ui_doc
-from api.diffuser import Diffuser
-from api.optimizer import PromptOptimizer
-from app_api import generate
-
-DIFFUSER: Diffuser
+from api import configure_logger, get_ui_doc, get_supported_llms, get_supported_diffusers, get_supported_optimizers, \
+    get_supported_image_ratios
+from app_api import generate_prompt, generate_image
 
 
 def load_parameters() -> Namespace:
@@ -22,21 +19,6 @@ def load_parameters() -> Namespace:
         help="Language of the app."
     )
     parser.add_argument(
-        "--api",
-        type=str,
-        required=False,
-        choices=["cohere", "ollama"],
-        default="cohere",
-        help="API providing the LLM used in the app"
-    )
-    parser.add_argument(
-        "--api-model",
-        type=str,
-        required=False,
-        default="command-r",
-        help="Model of the LLM used in the app (varies according to the selected API)"
-    )
-    parser.add_argument(
         "--logpath",
         type=str,
         required=False,
@@ -47,76 +29,95 @@ def load_parameters() -> Namespace:
 
 def build_ui(
         doc: dict,
-        api: str,
-        api_model: str
 ) -> gr.Blocks:
     """Builds the UI."""
     with gr.Blocks() as app:
         gr.Markdown(f"# {doc.get('title')}\n\n{doc.get('description')}")
 
-        with gr.Accordion(label=doc.get("project_label"), open=False):
-            gr.Markdown(f"## {doc.get('project_title')}\n\n{doc.get('project_description')}")
-            project = gr.Text(
-                label=None,
-                interactive=True,
-                container=False,
-                placeholder=doc.get("project_placeholder"),
-            )
+        gr.Markdown(f"## {doc.get('project_title')}\n\n{doc.get('project_description')}")
+        project = gr.Text(
+            label=None,
+            interactive=True,
+            container=False,
+            placeholder=doc.get("project_placeholder"),
+        )
 
         gr.Markdown(f"## {doc.get('generation_title')}\n\n{doc.get('generation_description')}")
-        with gr.Row():
+        with gr.Row(equal_height=True):
             with gr.Column(scale=3, variant="default"):
+                with gr.Row(equal_height=True):
+                    with gr.Column(scale=3, variant="default"):
+                        gr.Markdown(f"#### {doc.get('description_label')}")
+                        description = gr.TextArea(
+                            placeholder=doc.get("description_placeholder"),
+                            interactive=True,
+                            container=False,
+                            lines=2,
+                            max_lines=5,
+                            scale=3
+                        )
+                        gr.Markdown(f"#### {doc.get('prompt_label')}")
+                        prompt = gr.TextArea(
+                            placeholder=doc.get("prompt_placeholder"),
+                            interactive=True,
+                            container=False,
+                            lines=3,
+                            max_lines=10,
+                            scale=3
+                        )
+                    with gr.Column(scale=1, variant="default"):
+                        optimize_prompt = gr.Checkbox(
+                            label=doc.get("optimizer_box_label"),
+                            info=doc.get("optimizer_box_description"),
+                            value=True,
+                            container=False,
+                            interactive=True,
+                        )
+                        generate_prompt_btn = gr.Button(
+                            value=doc.get("generate_prompt_button"),
+                            variant="secondary",
+                        )
+                        generate_image_btn = gr.Button(
+                            value=doc.get("generate_image_button"),
+                            variant="primary",
+                        )
                 image = gr.Image(
-                    label="Image",
+                    label=doc.get("image_label"),
                     format="png",
                     type="pil",
-                    container=False,
+                    container=True,
                     height=1024,
                     width=1024,
                 )
-                with gr.Row(equal_height=True):
-                    with gr.Column(scale=3, variant="default"):
-                        prompt = gr.TextArea(
-                            label=doc.get("positive_prompt_label"),
-                            interactive=True,
-                            container=True,
-                            lines=3,
-                            max_lines=10
-                        )
-                        negative_prompt = gr.TextArea(
-                            label=doc.get("negative_prompt_label"),
-                            interactive=True,
-                            container=True,
-                            lines=1,
-                            max_lines=3
-                        )
-                    with gr.Column(scale=1, variant="default"):
-                        with gr.Row():
-                            gr.Markdown(doc.get("optimize_prompt_description"))
-                            optimize_prompt = gr.Checkbox(
-                                label=doc.get("optimize_prompt_label"),
-                                value=True,
-                                interactive=True,
-                                container=False,
-                            )
-                        generate_btn = gr.Button(
-                            value=doc.get("generate_button_label"),
-                            variant="primary",
-                        )
             with gr.Column(scale=1, variant="default"):
-                model = gr.Dropdown(
-                    label=doc.get("parameter_diffuser_label"),
-                    info=doc.get("parameter_diffuser_description"),
-                    choices=Diffuser.get_supported_models(),
-                    value=Diffuser.get_supported_models()[0],
+                llm = gr.Dropdown(
+                    label=doc.get("parameter_llm_label"),
+                    info=doc.get("parameter_llm_description"),
+                    choices=get_supported_llms(),
+                    value=get_supported_llms()[0],
                     multiselect=False
                 )
-                target_model = gr.Dropdown(
+                diffuser = gr.Dropdown(
+                    label=doc.get("parameter_diffuser_label"),
+                    info=doc.get("parameter_diffuser_description"),
+                    choices=get_supported_diffusers(),
+                    value=get_supported_diffusers()[0],
+                    multiselect=False
+                )
+                optimizer = gr.Dropdown(
                     label=doc.get("parameter_optimizer_label"),
                     info=doc.get("parameter_optimizer_description"),
-                    choices=PromptOptimizer.get_supported_rules(),
-                    value=PromptOptimizer.get_supported_rules()[0],
+                    choices=get_supported_optimizers(),
+                    value=get_supported_optimizers()[0],
                     multiselect=False
+                )
+                negative_prompt = gr.TextArea(
+                    label=doc.get("parameter_negative_prompt_label"),
+                    info=doc.get("parameter_negative_prompt_description"),
+                    interactive=True,
+                    container=True,
+                    lines=1,
+                    max_lines=3
                 )
                 steps = gr.Slider(
                     label=doc.get("parameter_steps_label"),
@@ -137,29 +138,28 @@ def build_ui(
                 aspect = gr.Dropdown(
                     label=doc.get("parameter_aspect_label"),
                     info=doc.get("parameter_aspect_description"),
-                    choices=Diffuser.get_supported_aspects(),
-                    value=Diffuser.get_supported_aspects()[0],
+                    choices=get_supported_image_ratios(),
+                    value=get_supported_image_ratios()[0],
                 )
-                seed = gr.Text(
+                seed = gr.Number(
                     label=doc.get("parameter_seed_label"),
                     info=doc.get("parameter_seed_description"),
                     value=None,
-                    lines=1,
-                    max_lines=1,
+                    minimum=0,
+                    maximum=1000000000,
+                    step=1,
                 )
 
-        diffuser = gr.State(value=DIFFUSER)
-        optimizer_api = gr.State(api)
-        optimizer_model = gr.State(api_model)
-
         # UI logic
-        generate_btn.click(
-            fn=generate,
-            inputs=[
-                model, prompt, negative_prompt, steps, guidance, aspect,
-                project, optimize_prompt, target_model, diffuser, optimizer_api, optimizer_model, seed
-            ],
-            outputs=[image, diffuser]
+        generate_prompt_btn.click(
+            fn=generate_prompt,
+            inputs=[llm, description, project, optimizer],
+            outputs=[prompt]
+        )
+        generate_image_btn.click(
+            fn=generate_image,
+            inputs=[diffuser, prompt, negative_prompt, steps, guidance, aspect, seed, optimize_prompt, optimizer, llm],
+            outputs=[image]
         )
     return app
 
@@ -168,17 +168,12 @@ if __name__ == "__main__":
     parameters = load_parameters()
     configure_logger(filepath=parameters.logpath if parameters.logpath else None)
 
-    logging.info(f"loading models")
-    DIFFUSER = Diffuser()
-
     logging.info(f"loading UI documentation")
     ui_doc = get_ui_doc(language=parameters.language)
 
     logging.info(f"building UI")
     app = build_ui(
         doc=ui_doc,
-        api=parameters.api,
-        api_model=parameters.api_model,
     )
 
     logging.info("running app")

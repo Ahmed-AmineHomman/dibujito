@@ -1,7 +1,5 @@
 from typing import Optional, List
 
-from PIL import Image
-
 
 class ConversationExchange:
     """Implements an exchange in the conversation between the user and the assistant."""

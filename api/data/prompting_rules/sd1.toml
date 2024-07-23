@@ -38,7 +38,7 @@ rules = """
 examples.inputs = [
     "a cat",
     "Young woman dancing in empty ballroom",
-    "Brown skin toddler with dark curly hair walking below the Gizeh pyramids with an astonished look on her face. The scene takes place in midday and we can see the sun burning brightly in the middle of a clean blue sky.",
+    "Brown skin toddler with dark curly hair walking below the Gizeh pyramids with an astonished look on his face. The scene takes place in midday and we can see the sun burning brightly in the middle of a clean blue sky.",
 ]
 examples.outputs = [
     "cat, digital art, realistic, in the style of leonardo da vinci, sharp, highly detailed, warm colors, soft lighting, cozy ambiance",
