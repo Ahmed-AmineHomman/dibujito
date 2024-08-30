@@ -22,9 +22,11 @@ Be detailed in your image description.
 Write naturally.
 No need to optimize your prompt; the app will do it for you.
 """
-image_label = "Image"
 prompt_label = "Prompt"
 prompt_placeholder = "Write what you want your image to display here..."
+optimized_prompt_label = "Prompt (optimized)"
+optimized_prompt_placeholder = "The actual prompt sent to the AI will be displayed here."
+image_label = "Image"
 generate_image_button = "Generate"
 optimizer_box_label = "Prompt Optimization"
 optimizer_box_description = """

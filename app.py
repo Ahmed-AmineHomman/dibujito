@@ -68,6 +68,14 @@ def build_ui(
                             value=doc.get("generate_image_button"),
                             variant="primary",
                         )
+                optimized_prompt = gr.TextArea(
+                    label=doc.get("optimized_prompt_label"),
+                    placeholder=doc.get("optimized_prompt_placeholder"),
+                    interactive=False,
+                    container=False,
+                    lines=2,
+                    max_lines=3,
+                )
                 image = gr.Image(
                     label=doc.get("image_label"),
                     format="png",
@@ -136,7 +144,6 @@ def build_ui(
                     maximum=1000000000,
                     step=1,
                 )
-        optimized_prompt = gr.State("")
 
         # UI logic
         generate_image_btn.click(

@@ -6,15 +6,15 @@ from typing import Optional, List
 from .base import LLM
 
 SYSTEM_PROMPT = """
-You are a prompt optimizer designed to transform user-provided scene/image descriptions into optimized prompts for text-to-image diffusion models.
-Your task is to turn the given descriptions into optimized prompts following the prompting rules provided below.
+Turn the image description provided by the user into optimized prompts for text-to-image diffusion models.
+Follow the following rules when designing your prompts:
 
 ---
-Prompting rules:
 <rules>
 ---
 
 You should return an optimized prompt as plain text only, with no additional text, introductions, or interpretations.
+Be specific and do not be afraid of using technical words.
 """
 
 
@@ -78,10 +78,7 @@ class PromptOptimizer:
             config = tomllib.load(fp)
 
         # define system prompt
-        rules = f"{config.get('rules')}\n\nExamples:\n"
-        for i, query in enumerate(config.get("examples").get("inputs")):
-            response = config.get("examples").get("outputs")[i]
-            rules += f"\ninput: {query}\noutput: {response}\n"
+        rules = f"{config.get('rules')}"
         system_prompt = SYSTEM_PROMPT.replace("<rules>", rules)
 
         # compute response

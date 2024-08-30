@@ -144,7 +144,7 @@ class Diffuser:
     ) -> dict:
         params = dict()
         if self.cuda:
-            params["device"] = "auto"
+            params["device"] = "cuda"
             if self._model.fp16:
                 params["variant"] = "fp16"
                 params["torch_dtype"] = torch.float16

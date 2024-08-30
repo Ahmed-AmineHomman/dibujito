@@ -127,7 +127,7 @@ def generate_image(
     else:
         log(message="loading LLM", progress=0, progressbar=progressbar)
         try:
-            LLM_MODEL.load_model(model=model)
+            LLM_MODEL.load_model(model=llm)
         except Exception as error:
             log(message=f"error (model loading): {error}", message_type="error")
 
@@ -150,7 +150,8 @@ def generate_image(
             )
         except Exception as error:
             log(message=f"Error (prompt optimization): {error}", message_type="error")
-        log(message=f"optimized prompt: {prompt}")
+
+        log(message=f"optimized prompt: {optimized_prompt}")
 
     log(message="generating image", progress=0.0, progressbar=progressbar)
     try:
