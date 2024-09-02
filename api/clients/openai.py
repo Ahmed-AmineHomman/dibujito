@@ -1,25 +1,25 @@
 import logging
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from PIL import Image
-from cohere import Client, ChatMessage
+from openai import Client
 
 from .base import ConversationExchange, BaseClient
 
 
-class CohereClient(BaseClient):
+class OpenAIClient(BaseClient):
     """
-    Cohere API client.
+    OpenAI API client.
     """
 
     def __init__(self):
-        self.client = Client(api_key=os.getenv("COHERE_API_KEY"))
+        self.client = Client(api_key=os.getenv("OPENAI_API_KEY"))
 
     def respond(
             self,
             prompt: str,
-            model: str = "command-r",
+            model: str = "gpt-4o-mini",
             image_prompt: Optional[Image] = None,
             system_prompt: Optional[str] = None,
             conversation_history: Optional[List[ConversationExchange]] = None,
@@ -29,23 +29,31 @@ class CohereClient(BaseClient):
             conversation_history = []
 
         # cast conversation history into supported format
-        chat_history = []
-        for exchange in conversation_history:
-            chat_history += [
-                ChatMessage(role="User", message=exchange.query),
-                ChatMessage(role="Chatbot", message=exchange.response)
+        messages: List[Dict[str, str]] = []
+        if system_prompt:
+            messages += [
+                dict(role="system", content=system_prompt)
             ]
+        for exchange in conversation_history:
+            messages += [
+                dict(role="user", message=exchange.query),
+                dict(role="assistant", message=exchange.response)
+            ]
+        messages += [
+            dict(role="user", content=prompt)
+        ]
 
         # request api
         try:
             response = (
-                self.client.chat(
-                    message=prompt,
+                self.client.chat.completions.create(
                     model=model,
-                    preamble=system_prompt,
-                    chat_history=chat_history,
+                    messages=messages,
+                    **kwargs
                 )
-                .text
+                .choices[0]
+                .message
+                .content
             )
         except Exception as error:
             message = f"error during API call: {error}"

@@ -1,0 +1,9 @@
+{
+  "deposit": "playgroundai/playground-v2.5-1024px-aesthetic",
+  "architecture": "sdxl",
+  "optimizations": {
+    "safetensors": true,
+    "torch_dtype": "float16",
+    "variant": "fp16"
+  }
+}

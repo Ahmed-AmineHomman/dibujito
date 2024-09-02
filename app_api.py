@@ -122,36 +122,29 @@ def generate_image(
     except Exception as error:
         log(message=f"error (model loading): {error}", message_type="error")
 
-    if not optimize_prompt:
-        optimized_prompt = prompt
-    else:
-        log(message="loading LLM", progress=0, progressbar=progressbar)
-        try:
-            LLM_MODEL.load_model(model=llm)
-        except Exception as error:
-            log(message=f"error (model loading): {error}", message_type="error")
-
+    optimized_prompt = prompt
+    if optimize_prompt:
         # enhance prompt by adding details
-        log(message="enhancing prompt", progress=0.0, progressbar=progressbar)
+        log(message="expanding prompt", progress=0.0, progressbar=progressbar)
         try:
             optimized_prompt = (
                 PromptWriter(llm=LLM_MODEL)
-                .optimize(prompt=prompt, goal=project)
+                .optimize(prompt=prompt, goal=project, model=llm)
             )
+            log(message=f"expanded prompt: {optimized_prompt}")
         except Exception as error:
-            log(message=f"Error (prompt optimization): {error}", message_type="error")
+            log(message=f"Error (prompt expansion): {error}", message_type="error")
 
         # optimize prompt for target model
-        log(message="enhancing prompt", progress=0.0, progressbar=progressbar)
+        log(message="optimizing prompt", progress=0.0, progressbar=progressbar)
         try:
             optimized_prompt = (
                 PromptOptimizer(llm=LLM_MODEL)
-                .optimize(prompt=prompt, target=optimizer_target)
+                .optimize(prompt=optimized_prompt, target=optimizer_target, model=llm)
             )
+            log(message=f"optimized prompt: {optimized_prompt}")
         except Exception as error:
             log(message=f"Error (prompt optimization): {error}", message_type="error")
-
-        log(message=f"optimized prompt: {optimized_prompt}")
 
     log(message="generating image", progress=0.0, progressbar=progressbar)
     try:

@@ -6,15 +6,21 @@ from typing import Optional, List
 from .base import LLM
 
 SYSTEM_PROMPT = """
-Turn the image description provided by the user into optimized prompts for text-to-image diffusion models.
-Follow the following rules when designing your prompts:
+Turn the image description provided by the user into an optimized prompt for text-to-image diffusion models.
+Follow the following rules when crafting your prompts:
 
 ---
 <rules>
 ---
 
-You should return an optimized prompt as plain text only, with no additional text, introductions, or interpretations.
-Be specific and do not be afraid of using technical words.
+In addition of the above rules, make sure to satisfy the constraints below ordered by importance:
+
+1. Clarity: craft each part of your prompt to be direct and descriptive, avoiding unnecessary verbosity.
+2. Accuracy: ensure all elements of the user's description are present in the prompt.
+3. Technicity: use appropriate technical Photographic, Painting or Artistic terms when relevant.
+4. Conciseness: ensure the prompt does not exceeds 50 or so words.
+
+Return your prompt as plain text only, with no additional text, introductions or interpretations.
 """
 
 

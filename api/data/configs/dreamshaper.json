@@ -1,0 +1,9 @@
+{
+  "deposit": "lykon/dreamshaper-8",
+  "architecture": "sd1",
+  "optimizations": {
+    "safetensors": true,
+    "variant": "fp16",
+    "torch_dtype": "float16"
+  }
+}

@@ -56,10 +56,7 @@ class Diffuser:
     }
     _aspect_mapper = {
         "sd1": {"square": (512, 512), "portrait": (768, 512), "landscape": (512, 768)},
-        **{
-            k: {"square": (1024, 1024), "portrait": (1280, 960), "landscape": (960, 1280)}
-            for k in ["sdxl", "sdxl-turbo", "playground"]
-        }
+        "sdxl": {"square": (1024, 1024), "portrait": (1280, 960), "landscape": (960, 1280)}
     }
 
     def __init__(

@@ -1,0 +1,8 @@
+{
+  "deposit": "RunDiffusion/Juggernaut-XI-v11",
+  "architecture": "sdxl",
+  "optimizations": {
+    "safetensors": true,
+    "torch_dtype": "float16"
+  }
+}

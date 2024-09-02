@@ -2,8 +2,9 @@ import logging
 from typing import List
 
 from api.clients.base import BaseClient
-from api.clients.cohere import CohereAPIClient
+from api.clients.cohere import CohereClient
 from api.clients.ollama import OllamaClient
+from api.clients.openai import OpenAIClient
 
 
 class APIClientFactory:
@@ -11,8 +12,9 @@ class APIClientFactory:
     Factory class for API clients.
     """
     _clients = {
-        "cohere": CohereAPIClient,
+        "cohere": CohereClient,
         "ollama": OllamaClient,
+        "openai": OpenAIClient
     }
 
     @staticmethod

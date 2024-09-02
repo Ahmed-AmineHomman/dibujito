@@ -1,27 +1,14 @@
 # This defines the prompting rules to follow.
 # It should describe precisely and concisely the syntax and process to follow when designing an optimal prompt for the associated diffuser.
 rules = """
-1. **Prompt Format**:
-    - A short paragraph composed of as few sentences as possible.
-    - Each sentence should be descriptive and concise, using technical words when needed.
-2. **Structure**:
-    a. **Subject**:
-        - Describe the main subject, including its pose and/or action.
-    b. **Background**:
-        - Describe the background, i.e. the environment in which the subject is.
-    c. **Medium**:
-        - Specify the material or method of artwork (e.g. "oil painting", "digital art", "photography", etc.).
-    d. **Style**:
-        - Indicate the artistic style (e.g. "impressionism", "bokeh", etc.).
-        - Restrict to one style for consistency.
-    e. **Additional Details**:
-        - Add additional details as comma-separated tags if needed (e.g. color palette, lighting, overall vibe, etc.).
-3. **Additional Rules**:
-    a. **Clarity**:
-        - Ensure the prompt is concise and free from unnecessary complexity.
-        - The resulting prompt should be as short as possible while containing all the information provided in the input description.
-4. **Global Guidelines**:
-    - Ensure that the prompt effectively communicates the intended image with minimal sentences while remaining fully descriptive.
+1. Prompt Format:
+    A single phrase composed of comma separated tags, keywords or short sentences.
+2. Structure:
+    a. Subject: Describe the main subject, including its pose and/or action.
+    b. Background: Describe the background, i.e. the environment in which the subject is.
+    c. Medium: Specify the material or method of artwork (e.g. "oil painting", "digital art", "photography", etc.).
+    d. Style: Indicate the artistic style (e.g. "impressionism", "bokeh", etc.). Restrict to one style for consistency.
+    e. Additional Details: Add additional details as comma-separated tags if needed (e.g. color palette, lighting, overall vibe, etc.).
 """
 
 # This indicates prefixes & suffixes to add to the optimal prompt.

@@ -4,24 +4,27 @@ from typing import Optional
 from .base import LLM
 
 SYSTEM_PROMPT = """
-You are a large language model tasked with enhancing user-provided image descriptions.
-Your goal is to transform simple descriptions into detailed, aesthetically pleasing, and explicit prompts suitable for text-to-image diffusion models.
-The enhanced descriptions should be clear, leave no room for interpretation, and align with the user's goals and expectations.
+Enhance the user provided image or scene descriptions by adding appropriate details.
+If the user also provides an end goal, take it into account when designing your description.
+Return a single natural language paragraph detailing all the elements below:
 
-Instructions:
+- Subject: the primary focus of the image (e.g., person, animal, object).
+- Action: what the subject is doing, adding dynamism or narrative.
+- Environment/Setting: the background or scene surrounding the subject.
+- Style: The artistic style (eg. oil painting, charcoal drawing, etc.) or method of rendering (photography, digital art, etc.).
+- Color: Dominant colors or color schemes.
+- Mood/Atmosphere: The emotional or atmospheric quality.
+- Lighting: Specific lighting conditions or effects.
+- Perspective/Viewpoint: The angle or perspective from which the scene is viewed.
 
-Detail and Clarity: Add specific details to the description, including environment, lighting, colors, and mood.
-Explicit Art Style: Clearly define the art style, medium, and color palette to avoid any ambiguity.
-Contextual Alignment: Ensure the enhanced description aligns with the user's goals and context provided.
+In addition, ensure to satisfy the constraints below ordered by importance:
 
-Examples:
+1. Clarity: craft each part of your prompt to be direct and descriptive, avoiding unnecessary verbosity.
+2. Technicity: use appropriate technical Photographic, Painting or Artistic terms when relevant.
+3. Accuracy: ensure all elements of the user's description are present in the prompt.
+4. Creativity: fill in the gaps, i.e. invent details for each element left unspecified by the user's description.
 
--   Input: Description: "cute cat smiling at the camera". Goal: "Create illustrations for a DnD campaign for young children with a cartoon style."
-    Output: In a vibrant, magical forest depicted in a cartoon style with simple, rounded shapes and bright, cheerful colors, a delightful kitten with large, expressive eyes and a heart-shaped nose sits happily. The kitten, illustrated with soft, pastel-colored fur and a big smile, looks directly at the camera. The scene features oversized, brightly colored mushrooms and softly glowing fireflies against a backdrop of gently curved, whimsical trees. A rainbow arches across a clear, blue sky. The illustration employs a warm, soft color palette with primary and pastel shades. The art style is characterized by thick outlines, exaggerated features, and a two-dimensional, flat appearance, similar to classic animated cartoons for children. The medium used is digital art, ensuring smooth, vibrant colors and clean lines, perfect for a child-friendly and visually engaging illustration.
--   Input: Description: "confident samurai duck walks in medieval city". Goal: "Generate illustrations for my fantasy novel. Images should exhibit the art style of Japanese comics (niji style)."
-    Output: In a bustling medieval city depicted in the vibrant and dynamic art style of Japanese comics (niji style), a confident samurai duck walks through the cobblestone streets. The samurai duck, with a determined expression, is illustrated with sharp, clean lines and vibrant colors. It wears traditional samurai armor, complete with intricate details and a katana at its side. The medieval city background features stone buildings with wooden beams, market stalls with colorful awnings, and townspeople dressed in period clothing going about their daily activities. The color palette is bold and vivid, with rich reds, deep blues, and bright yellows, creating a visually striking contrast. The overall illustration uses digital art techniques to achieve a smooth, polished finish, ensuring the scene is both engaging and true to the niji style of Japanese comics.
-
-Always ensure that the enhanced descriptions are specific, detailed, and align perfectly with the user's provided context and goals.
+Return your prompt as plain text only, with no additional text, introductions or interpretations.
 """
 
 
@@ -52,7 +55,7 @@ class PromptWriter:
             The image description to enhance.
         goal: str,
             The user's goal for the end images
-        model: str, optional
+        model: str
             The LLM to use for optimization.
 
         Returns
@@ -68,7 +71,9 @@ class PromptWriter:
             goal = "Create detailed and aesthetically pleasing images."
 
         # define query
-        query = f"Description: {prompt}. Goal: {goal}"
+        query = f"---\nImage description: {prompt}\n---"
+        if goal:
+            query += f"End goal: {goal}\n---"
 
         # compute response
         try:
