@@ -1,6 +1,6 @@
 import logging
 from typing import Optional, List, Dict
-
+import os
 import torch
 from PIL import Image
 from diffusers import DiffusionPipeline, AutoPipelineForText2Image
@@ -53,6 +53,13 @@ class Diffuser:
             fp16=True,
             safetensors=True,
         ),
+        "juggernaut": DiffuserSpecs(
+            name="juggernaut",
+            deposit="RunDiffusion/Juggernaut-XI-v11",
+            architecture="sdxl",
+            fp16=False,
+            safetensors=False
+        )
     }
     _aspect_mapper = {
         "sd1": {"square": (512, 512), "portrait": (768, 512), "landscape": (512, 768)},
@@ -139,9 +146,11 @@ class Diffuser:
     def _set_pipeline_parameters(
             self
     ) -> dict:
-        params = dict()
+        params = dict(
+                token=os.getenv("HF_API_KEY")
+        )
         if self.cuda:
-            params["device"] = "cuda"
+            params["device"] = "auto"
             if self._model.fp16:
                 params["variant"] = "fp16"
                 params["torch_dtype"] = torch.float16
