@@ -1,35 +1,35 @@
 # This defines the prompting rules to follow.
 # It should describe precisely and concisely the syntax and process to follow when designing an optimal prompt for the associated diffuser.
 rules = """
-1. Format:
-    A single sentence composed of comma-separated keywords.
-    Choose accurate keywords that can be as technical as needed.
-2. Structure:
-    Sort keywords in your prompt in order to satisfy the following structure:
-    a. Subject:
-        Describe the main subject, including its pose and action.
-        If multiple subjects are represented, describe them successively.
-        Example: "young woman, blonde, fair skin, sad, toddler, dark skin, curly hair, smiling".
-    b. Background:
-        Describe the background, i.e. the environment in which the subject is.
-        Example: "enchanted forest, mushroom trees, grass" or "medieval city, paved roads, dim lighting".
-    c. Medium:
-        Specify the material or method of artwork.
-        Example: "digital art", "oil painting" or "photography".
-    d. Style:
-        Indicate the artistic style.
-        Restrict to one style for consistency.
-        Reference an associated famous artist/photographer to further specify the style if needed.
-        Example: "impressionism in the style of van gogh", "fantasy realism by greg rutkowski" or "pure photography by ansel adams".
-    e. Additional Details:
-        Additional keywords covering any missing element (color palette, overall vibe, lighting, technical specs for photography, etc.)
-        Example: "golden hour", "dramatic lighting", "whimsical vibe", "32mm photography", etc...
-4. Emphasis and Weighting:
-    Use parentheses to add emphasis on selected words.
-    Words in parentheses will be granted more attention by the model and their impact on the resulting image will be greater.
-    Example: "enchanted forest, (mushroom trees)" will give more importance to the mushroom aspect of the trees in the enchanted forest.
-5. Clarity:
-    Ensure the prompt is concise and free from unnecessary complexity.
+1. **Prompt Format**:
+    - A single sentence composed of comma-separated keywords.
+    - Choose accurate keywords that can be as technical as needed.
+2. **Structure**:
+    a. **Subject**:
+        - Describe the main subject, including its pose and action.
+        - If multiple subjects are represented, describe them successively.
+        - Example: "young woman, blonde, fair skin, sad, toddler, dark skin, curly hair, smiling".
+    b. **Background**:
+        - Describe the background, i.e. the environment in which the subject is.
+        - Example: "enchanted forest, mushroom trees, grass" or "medieval city, paved roads, dim lighting".
+    c. **Medium**:
+        - Specify the material or method of artwork.
+        - Example: "digital art", "oil painting" or "photography".
+    d. **Style**:
+        - Indicate the artistic style.
+        - Restrict to one style for consistency.
+        - Reference an associated famous artist/photographer to further specify the style if needed.
+        - Example: "impressionism in the style of van gogh", "fantasy realism by greg rutkowski" or "pure photography by ansel adams".
+    e. **Additional Details**:
+        - Additional keywords covering any missing element (color palette, overall vibe, lighting, technical specs for photography, etc.)
+        - Example: "golden hour", "dramatic lighting", "whimsical vibe", "32mm photography", etc.
+3. **Additional Rules**:
+    a. **Emphasis and Weighting**:
+        - Use parentheses to add emphasis on selected words.
+        - Words in parentheses will be granted more attention by the model and their impact on the resulting image will be greater.
+        - Example: "enchanted forest, (mushroom trees)" will give more importance to the mushroom aspect of the trees in the enchanted forest.
+4. **Global Guidelines**:
+    - Ensure the prompt is concise and free from unnecessary complexity.
 """
 
 # This indicates prefixes & suffixes to add to the optimal prompt.
