@@ -4,26 +4,14 @@ rules = """
 1. Prompt Format:
     A single sentence composed of comma-separated keywords.
 2. Structure:
-    a. Subject:
-        - Describe the main subject, including its pose and action.
-        - If multiple subjects are represented, describe them successively.
-        - Example: "young woman, blonde, fair skin, sad, toddler, dark skin, curly hair, smiling".
-    b. Background:
-        - Describe the background, i.e. the environment in which the subject is.
-        - Example: "enchanted forest, mushroom trees, grass" or "medieval city, paved roads, dim lighting".
-    c. Medium:
-        - Specify the material or method of artwork.
-        - Example: "digital art", "oil painting" or "photography".
-    d. Style:
-        - Indicate the artistic style.
-        - Restrict to one style for consistency.
-        - Reference an associated famous artist/photographer to further specify the style if needed.
-        - Example: "impressionism in the style of van gogh", "fantasy realism by greg rutkowski" or "pure photography by ansel adams".
-    e. Additional Details:
-        - Additional keywords covering any missing element (color palette, overall vibe, lighting, technical specs for photography, etc.)
-        - Example: "golden hour", "dramatic lighting", "whimsical vibe", "32mm photography", etc.
+    Organize the keywords according to the following:
+    a. Subject: main subject, including its pose and/or action.
+    b. Background: background or environment in which the subject is.
+    c. Medium: material or rendering method (e.g. "oil painting", "digital art", "photography", etc.).
+    d. Style: artistic style (e.g. "impressionism", "bokeh", etc.). Restrict to one style for consistency.
+    e. Additional Details: Add additional details as comma-separated tags if needed (e.g. color palette, lighting, overall vibe, etc.).
 """
 
 # This indicates prefixes & suffixes to add to the optimal prompt.
 additionals.prefix = ""
-additionals.suffix = ", masterpiece, absurdres, very-detailed"
+additionals.suffix = "masterpiece, absurdres, very-detailed"

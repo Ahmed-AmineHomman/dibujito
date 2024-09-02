@@ -46,28 +46,20 @@ def build_ui(
         with gr.Row(equal_height=True):
             with gr.Column(scale=3, variant="default"):
                 with gr.Row(equal_height=True):
-                    with gr.Column(scale=3, variant="default"):
-                        prompt = gr.TextArea(
-                            label=doc.get('prompt_label'),
-                            placeholder=doc.get("prompt_placeholder"),
-                            interactive=True,
-                            container=False,
-                            lines=3,
-                            max_lines=10,
-                            scale=3
-                        )
-                    with gr.Column(scale=1, variant="default"):
-                        optimize_prompt = gr.Checkbox(
-                            label=doc.get("optimizer_box_label"),
-                            info=doc.get("optimizer_box_description"),
-                            value=True,
-                            container=False,
-                            interactive=True,
-                        )
-                        generate_image_btn = gr.Button(
-                            value=doc.get("generate_image_button"),
-                            variant="primary",
-                        )
+                    prompt = gr.TextArea(
+                        label=doc.get('prompt_label'),
+                        placeholder=doc.get("prompt_placeholder"),
+                        interactive=True,
+                        container=False,
+                        lines=2,
+                        max_lines=3,
+                        scale=3
+                    )
+                    generate_image_btn = gr.Button(
+                        value=doc.get("generate_image_button"),
+                        variant="primary",
+                        scale=1,
+                    )
                 optimized_prompt = gr.TextArea(
                     label=doc.get("optimized_prompt_label"),
                     placeholder=doc.get("optimized_prompt_placeholder"),
@@ -99,9 +91,16 @@ def build_ui(
                     value=get_supported_diffusers()[0],
                     multiselect=False
                 )
-                optimizer = gr.Dropdown(
-                    label=doc.get("parameter_optimizer_label"),
-                    info=doc.get("parameter_optimizer_description"),
+                optimization_level = gr.Dropdown(
+                    label=doc.get("parameter_optimization_level_label"),
+                    info=doc.get("parameter_optimization_level_description"),
+                    choices=["none", "light", "strong"],
+                    value="strong",
+                    multiselect=False
+                )
+                optimization_target = gr.Dropdown(
+                    label=doc.get("parameter_optimization_target_label"),
+                    info=doc.get("parameter_optimization_target_description"),
                     choices=get_supported_optimizers(),
                     value=get_supported_optimizers()[0],
                     multiselect=False
@@ -148,8 +147,10 @@ def build_ui(
         # UI logic
         generate_image_btn.click(
             fn=generate_image,
-            inputs=[diffuser, prompt, negative_prompt, steps, guidance, aspect, seed, optimize_prompt, llm, optimizer,
-                    project],
+            inputs=[
+                diffuser, prompt, negative_prompt, steps, guidance, aspect, seed,
+                llm, optimization_level, optimization_target, project
+            ],
             outputs=[image, optimized_prompt]
         )
     return app

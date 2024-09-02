@@ -20,9 +20,9 @@ Return a single natural language paragraph detailing all the elements below:
 In addition, ensure to satisfy the constraints below ordered by importance:
 
 1. Clarity: craft each part of your prompt to be direct and descriptive, avoiding unnecessary verbosity.
-2. Technicity: use appropriate technical Photographic, Painting or Artistic terms when relevant.
-3. Accuracy: ensure all elements of the user's description are present in the prompt.
-4. Creativity: fill in the gaps, i.e. invent details for each element left unspecified by the user's description.
+2. Accuracy: ensure your prompt is true to the user's description and misses nothing in it.
+3. Creativity: fill in the gaps, i.e. invent details for each element left unspecified by the user's description.
+4. Technicality: use appropriate technical Photographic, Painting or Artistic terms when relevant.
 
 Return your prompt as plain text only, with no additional text, introductions or interpretations.
 """

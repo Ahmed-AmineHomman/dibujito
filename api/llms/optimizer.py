@@ -7,7 +7,7 @@ from .base import LLM
 
 SYSTEM_PROMPT = """
 Turn the image description provided by the user into an optimized prompt for text-to-image diffusion models.
-Follow the following rules when crafting your prompts:
+Follow the rules below when crafting your prompts:
 
 ---
 <rules>
@@ -15,10 +15,10 @@ Follow the following rules when crafting your prompts:
 
 In addition of the above rules, make sure to satisfy the constraints below ordered by importance:
 
-1. Clarity: craft each part of your prompt to be direct and descriptive, avoiding unnecessary verbosity.
-2. Accuracy: ensure all elements of the user's description are present in the prompt.
-3. Technicity: use appropriate technical Photographic, Painting or Artistic terms when relevant.
-4. Conciseness: ensure the prompt does not exceeds 50 or so words.
+1. Clarity: Be direct and descriptive. Avoid unnecessary words.
+2. Accuracy: Reflect the user's description precisely, without omissions.
+3. Conciseness: Aim for around 50 words or fewer.
+4. Technicality: Use relevant technical terms from photography or art where appropriate.
 
 Return your prompt as plain text only, with no additional text, introductions or interpretations.
 """
@@ -101,9 +101,11 @@ class PromptOptimizer:
             raise ValueError(message)
 
         # append prefix & suffix
-        optimized_prompt = f"{config.get('additionals').get('prefix')} {optimized_prompt} {config.get('additionals').get('suffix')}"
+        prefixes = config.get('additionals').get('prefix')
+        suffixes = config.get('additionals').get('suffix')
+        optimized_prompt = f"{prefixes}, {optimized_prompt}, {suffixes}".replace(".", ",")
 
         # post-processing
-        optimized_prompt = " ".join([w for w in optimized_prompt.split(" ") if len(w) > 0])
+        optimized_prompt = ", ".join([w.strip() for w in optimized_prompt.split(",") if len(w) > 0])
 
         return optimized_prompt

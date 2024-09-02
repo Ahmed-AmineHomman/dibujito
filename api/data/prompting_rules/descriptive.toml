@@ -2,15 +2,25 @@
 # It should describe precisely and concisely the syntax and process to follow when designing an optimal prompt for the associated diffuser.
 rules = """
 1. Prompt Format:
-    A single phrase composed of comma separated tags, keywords or short sentences.
+    A single phrase composed of comma separated keywords or short sentences.
 2. Structure:
-    a. Subject: Describe the main subject, including its pose and/or action.
-    b. Background: Describe the background, i.e. the environment in which the subject is.
-    c. Medium: Specify the material or method of artwork (e.g. "oil painting", "digital art", "photography", etc.).
-    d. Style: Indicate the artistic style (e.g. "impressionism", "bokeh", etc.). Restrict to one style for consistency.
-    e. Additional Details: Add additional details as comma-separated tags if needed (e.g. color palette, lighting, overall vibe, etc.).
+    a. Subject: The primary focus of the image (e.g., person, animal, object).
+    b. Action: Describes what the subject is doing, adding dynamism or narrative.
+    c. Environment/Setting: The background or scene surrounding the subject.
+    d. Object: Secondary items that enhance the subject or story.
+    e. Color: Dominant colors or color schemes.
+    f. Style: The artistic style or method of rendering.
+    g. Mood/Atmosphere: The emotional or atmospheric quality.
+    h. Lighting: Specific lighting conditions or effects.
+    i. Perspective/Viewpoint: The angle or perspective from which the scene is viewed.
+    j. Texture/Material: Prominent textures or materials visible in the image.
+    k. Time Period: A specific era or historical period.
+    l. Cultural Elements: Elements that reflect specific cultures or traditions.
+    m. Emotion: The expressed emotion if the subject is sentient.
+    n. Medium: Specifies the artistic medium or level of detail.
+    o. Clothing: Description of the types and styles of garment.
 """
 
 # This indicates prefixes & suffixes to add to the optimal prompt.
 additionals.prefix = ""
-additionals.suffix = ""
+additionals.suffix = "high resolution"

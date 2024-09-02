@@ -101,30 +101,24 @@ def generate_image(
         guidance: float = 7.0,
         aspect: str = "square",
         seed: Optional[str] = None,
-        optimize_prompt: bool = True,
         llm: Optional[str] = None,
+        optimization_level: Optional[str] = "none",
         optimizer_target: Optional[str] = None,
         project: Optional[str] = None,
         progressbar: gr.Progress = gr.Progress()
 ) -> tuple[Image, str]:
     """Generates the image corresponding to the provided prompt."""
     # consistency checks
-    if optimize_prompt:
-        if (not optimizer_target) or (not llm):
-            log(
-                message="error: 'optimizer_target' and 'llm' are required when optimizing prompt",
-                message_type="error",
-            )
-
-    log(message="loading diffuser", progress=0, progressbar=progressbar)
-    try:
-        DIFFUSION_MODEL.load_model(model=model)
-    except Exception as error:
-        log(message=f"error (model loading): {error}", message_type="error")
+    if (optimization_level != "none") and (not llm):
+        log(
+            message="error: LLM must be provided when requiring prompt optimization",
+            message_type="error",
+        )
 
     optimized_prompt = prompt
-    if optimize_prompt:
-        # enhance prompt by adding details
+
+    # expand prompt by adding details
+    if optimization_level == "strong":
         log(message="expanding prompt", progress=0.0, progressbar=progressbar)
         try:
             optimized_prompt = (
@@ -135,7 +129,8 @@ def generate_image(
         except Exception as error:
             log(message=f"Error (prompt expansion): {error}", message_type="error")
 
-        # optimize prompt for target model
+    # optimize prompt for target model
+    if optimization_level in ["strong", "light"]:
         log(message="optimizing prompt", progress=0.0, progressbar=progressbar)
         try:
             optimized_prompt = (
@@ -145,6 +140,12 @@ def generate_image(
             log(message=f"optimized prompt: {optimized_prompt}")
         except Exception as error:
             log(message=f"Error (prompt optimization): {error}", message_type="error")
+
+    log(message="loading diffuser", progress=0, progressbar=progressbar)
+    try:
+        DIFFUSION_MODEL.load_model(model=model)
+    except Exception as error:
+        log(message=f"error (model loading): {error}", message_type="error")
 
     log(message="generating image", progress=0.0, progressbar=progressbar)
     try:
