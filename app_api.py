@@ -115,11 +115,28 @@ def generate_image(
             message_type="error",
         )
 
+    # define progressbar levels
+    if optimization_level == "strong":
+        expand_step = 0.0
+        optim_step = 0.25
+        loading_step = 0.5
+        diffusion_step = 0.6
+    elif optimization_level == "light":
+        expand_step = 0.0
+        optim_step = 0.0
+        loading_step = 0.3
+        diffusion_step = 0.4
+    else:
+        expand_step = 0.0
+        optim_step = 0.0
+        loading_step = 0.0
+        diffusion_step = 0.1
+
     optimized_prompt = prompt
 
     # expand prompt by adding details
     if optimization_level == "strong":
-        log(message="expanding prompt", progress=0.0, progressbar=progressbar)
+        log(message="expanding prompt", progress=expand_step, progressbar=progressbar)
         try:
             optimized_prompt = (
                 PromptWriter(llm=LLM_MODEL)
@@ -131,7 +148,7 @@ def generate_image(
 
     # optimize prompt for target model
     if optimization_level in ["strong", "light"]:
-        log(message="optimizing prompt", progress=0.0, progressbar=progressbar)
+        log(message="optimizing prompt", progress=optim_step, progressbar=progressbar)
         try:
             optimized_prompt = (
                 PromptOptimizer(llm=LLM_MODEL)
@@ -141,13 +158,13 @@ def generate_image(
         except Exception as error:
             log(message=f"Error (prompt optimization): {error}", message_type="error")
 
-    log(message="loading diffuser", progress=0, progressbar=progressbar)
+    log(message="loading diffuser", progress=loading_step, progressbar=progressbar)
     try:
         DIFFUSION_MODEL.load_model(model=model)
     except Exception as error:
         log(message=f"error (model loading): {error}", message_type="error")
 
-    log(message="generating image", progress=0.0, progressbar=progressbar)
+    log(message="generating image", progress=diffusion_step, progressbar=progressbar)
     try:
         image = DIFFUSION_MODEL.imagine(
             prompt=optimized_prompt,
