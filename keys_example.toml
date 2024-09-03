@@ -1,0 +1,5 @@
+# In order for the app to use your API tokens, rename this file to "keys.toml" in the root folder of the solution and set the variables below to their appropriate values.
+# API tokens can usually be obtained in the account management page of the API service provider.
+openai = "xxx"  # GPT LLMs by OpenAI
+cohere = "xxx"  # Command LLMs by Cohere
+hf = "xxx"  # retrieval of gated models available in the Hugging Face Hub

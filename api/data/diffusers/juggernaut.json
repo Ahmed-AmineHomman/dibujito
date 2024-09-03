@@ -1,8 +1,10 @@
 {
+  "name": "juggernaut",
   "deposit": "RunDiffusion/Juggernaut-XI-v11",
   "architecture": "sdxl",
-  "optimizations": {
+  "prompting": "descriptive",
+  "cuda": {
     "safetensors": true,
-    "torch_dtype": "float16"
+    "float16": true
   }
 }

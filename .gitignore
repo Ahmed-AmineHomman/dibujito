@@ -2,6 +2,5 @@
 venv
 .env
 
-# generated files
-models/
-config.json
+# configuration files
+/keys.toml

@@ -1,5 +1,7 @@
 import logging
+import os.path
 from argparse import ArgumentParser, Namespace
+from tomllib import load
 
 import gradio as gr
 
@@ -162,6 +164,14 @@ if __name__ == "__main__":
 
     logging.info(f"loading UI documentation")
     ui_doc = get_ui_doc(language=parameters.language)
+
+    logging.info("loading API keys")
+    if os.path.exists("keys.toml"):
+        with open("keys.toml", "rb") as fh:
+            keys = load(fh)
+        for api in ["openai", "cohere", "hf"]:
+            if api in keys.keys():
+                os.environ[f"{api.upper()}_API_KEY"] = keys.get(api)
 
     logging.info(f"building UI")
     app = build_ui(

@@ -1,0 +1,11 @@
+{
+  "name": "dreamshaper",
+  "deposit": "lykon/dreamshaper-8",
+  "architecture": "sd1",
+  "prompting": "tags",
+  "safetensors": true,
+  "cuda": {
+    "float16": true,
+    "variant": "fp16"
+  }
+}

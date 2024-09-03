@@ -1,31 +1,11 @@
 import logging
-from typing import Optional, List, Dict
 import os
+from json import load
+from typing import Optional, List
+
 import torch
 from PIL import Image
-from diffusers import DiffusionPipeline, AutoPipelineForText2Image
-
-
-class DiffuserSpecs:
-    name: str
-    deposit: str
-    architecture: str
-    fp16: bool
-    safetensors: bool
-
-    def __init__(
-            self,
-            name: str,
-            deposit: str,
-            architecture: str,
-            fp16: bool = False,
-            safetensors: bool = False,
-    ):
-        self.name = name
-        self.deposit = deposit
-        self.architecture = architecture
-        self.fp16 = fp16
-        self.safetensors = safetensors
+from diffusers import StableDiffusionPipeline, AutoPipelineForText2Image
 
 
 class Diffuser:
@@ -34,33 +14,12 @@ class Diffuser:
 
     It is based on the ``diffusers`` library, and is compatible with any stable-diffusion 1.5 based models.
     """
-    pipeline: DiffusionPipeline
+    pipeline: StableDiffusionPipeline
     cuda: bool
+    ready: bool
 
-    _model: Optional[DiffuserSpecs] = None
-    _supported_models: Dict[str, DiffuserSpecs] = {
-        "dreamshaper": DiffuserSpecs(
-            name="dreamshaper",
-            deposit="lykon/dreamshaper-8",
-            architecture="sd1",
-            fp16=True,
-            safetensors=True,
-        ),
-        "playground": DiffuserSpecs(
-            name="playground",
-            deposit="playgroundai/playground-v2.5-1024px-aesthetic",
-            architecture="sdxl",
-            fp16=True,
-            safetensors=True,
-        ),
-        "juggernaut": DiffuserSpecs(
-            name="juggernaut",
-            deposit="RunDiffusion/Juggernaut-XI-v11",
-            architecture="sdxl",
-            fp16=False,
-            safetensors=False
-        )
-    }
+    _config_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "api", "data", "diffusers"))
+    _config: dict = {}
     _aspect_mapper = {
         "sd1": {"square": (512, 512), "portrait": (768, 512), "landscape": (512, 768)},
         "sdxl": {"square": (1024, 1024), "portrait": (1280, 960), "landscape": (960, 1280)}
@@ -70,13 +29,17 @@ class Diffuser:
             self,
             model: Optional[str] = None
     ):
+        self.ready = False
         self.cuda = torch.cuda.is_available()
         if model:
             self.load_model(model=model)
 
     @staticmethod
     def get_supported_models() -> List[str]:
-        return [k for k in Diffuser._supported_models.keys()]
+        output = os.listdir(Diffuser._config_dir)
+        output = [f for f in output if os.path.isfile(os.path.join(Diffuser._config_dir, f))]
+        output = [f for f in output if f.endswith(".json")]
+        return [f.split(".")[0] for f in output]
 
     @staticmethod
     def get_supported_aspects() -> List[str]:
@@ -88,19 +51,25 @@ class Diffuser:
             message = f"Unsupported model '{model}'"
             logging.error(message)
             raise ValueError(message)
-        if self._supported_models.get(model) == self._model:
-            pass
 
-        if (self._model is None) or (model != self._model.name):
-            self._model = self._supported_models.get(model)
+        # load pipeline
+        if self._config.get("name") == model:
+            pass
+        else:
+            # load model configuration
+            with open(os.path.join(self._config_dir, f"{model}.json"), "rb") as fh:
+                self._config = load(fh)
+
+            # load pipeline
             params = self._set_pipeline_parameters()
-            self.pipeline = AutoPipelineForText2Image.from_pretrained(
-                self._model.deposit,
-                **params
-            )
+            self.pipeline = AutoPipelineForText2Image.from_pretrained(**params)
+
+            # apply optimizations
             if self.cuda:
                 self.pipeline = self.pipeline.to("cuda")
                 self.pipeline.enable_model_cpu_offload()
+
+            self.ready = True
 
     def imagine(
             self,
@@ -113,24 +82,23 @@ class Diffuser:
     ) -> Image:
         """Generates an image corresponding to the provided prompt."""
         # consistency checks
+        if not self.ready:
+            message = "No model loaded. Please call `load_model` to load a model first."
+            logging.error(message)
+            raise RuntimeError(message)
         if aspect not in self.get_supported_aspects():
             message = f"unsupported format '{aspect}'"
             logging.error(message)
             raise ValueError(message)
-        if self._model is None:
-            message = "No model loaded. Please call `load_model` to load a model first."
-            logging.error(message)
-            raise RuntimeError(message)
 
         # define diffusion parameters
-        params = dict(
+        params = self._set_generation_parameters(
             prompt=prompt,
-            num_inference_steps=steps,
-            guidance_scale=guidance,
-            width=self._aspect_mapper[self._model.architecture]["square"][0],
-            height=self._aspect_mapper[self._model.architecture]["square"][1],
-            generator=torch.Generator().manual_seed(seed) if seed else torch.Generator(),
             negative_prompt=negative_prompt,
+            aspect=aspect,
+            steps=steps,
+            guidance=guidance,
+            seed=seed
         )
 
         # generate image
@@ -144,16 +112,36 @@ class Diffuser:
         return image
 
     def _set_pipeline_parameters(
-            self
+            self,
     ) -> dict:
         params = dict(
-                token=os.getenv("HF_API_KEY")
+            pretrained_model_or_path=self._config.get("deposit"),
+            token=os.getenv("HF_API_KEY")
         )
         if self.cuda:
-            params["device"] = "auto"
-            if self._model.fp16:
-                params["variant"] = "fp16"
+            if self._config.get("cuda").get("float16"):
                 params["torch_dtype"] = torch.float16
-        if self._model.safetensors:
+            if "variant" in self._config.get("cuda").keys():
+                params["variant"] = self._config.get("cuda").get("variant")
+        if self._config.get("safetensors"):
             params["use_safetensors"] = True
         return params
+
+    def _set_generation_parameters(
+            self,
+            prompt: str,
+            negative_prompt: str,
+            aspect: str,
+            steps: int,
+            guidance: float,
+            seed: Optional[int] = None
+    ) -> dict:
+        return dict(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            width=self._aspect_mapper[self._config.get("architecture")][aspect][0],
+            height=self._aspect_mapper[self._config.get("architecture")][aspect][1],
+            generator=torch.Generator().manual_seed(seed) if seed else torch.Generator(),
+        )
