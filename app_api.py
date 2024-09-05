@@ -4,11 +4,19 @@ from typing import Optional
 import gradio as gr
 from PIL import Image
 
-from api import Diffuser
-from api.llms import LLM, PromptWriter, PromptOptimizer
+from api import Diffuser, LLM
+from api.clients import create_client
+from typing import Dict, Tuple
 
-LLM_MODEL: LLM = LLM()
-DIFFUSION_MODEL: Diffuser = Diffuser()
+LLM_MODEL: LLM
+DIFFUSION_MODEL: Diffuser
+CLIENT_MAPPER: Dict[str, Tuple[str, str]] = {
+    "command r": ("cohere", "command-r"),
+    "command r+": ("cohere", "command-r-plus"),
+    "gpt4o mini": ("openai", "gpt-4o-mini"),
+    "gpt4o": ("openai", "gpt-4o"),
+    "rwkv": ("rwkv", "")
+}
 
 
 def log(
@@ -63,10 +71,9 @@ def generate_prompt(
         progressbar: gr.Progress = gr.Progress()
 ) -> str:
     """Generates a prompt based on the provided image description."""
-    try:
-        LLM_MODEL.load_model(model=model)
-    except Exception as error:
-        log(message=f"error (model loading): {error}", message_type="error")
+    # consistency checks
+    if model not in LLM.get_supported_models():
+        log(message=f"model '{model}' is not supported", message_type="error")
 
     prompt = scene
 

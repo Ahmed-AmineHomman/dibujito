@@ -5,7 +5,8 @@ from logging import getLogger
 from typing import Optional
 
 from .diffuser import Diffuser
-from .llms import LLM, PromptOptimizer
+from .llm import LLM
+from .clients import APIClientFactory
 
 
 def configure_logger(filepath: Optional[str] = None) -> None:
@@ -39,12 +40,12 @@ def get_supported_llms() -> list[str]:
     return LLM.get_supported_models()
 
 
+def get_supported_optimizers() -> list[str]:
+    return LLM.get_supported_rules()
+
+
 def get_supported_diffusers() -> list[str]:
     return Diffuser.get_supported_models()
-
-
-def get_supported_optimizers() -> list[str]:
-    return PromptOptimizer.get_supported_models()
 
 
 def get_supported_image_ratios() -> list[str]:
