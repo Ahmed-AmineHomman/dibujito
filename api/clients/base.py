@@ -15,6 +15,7 @@ class BaseClient:
     """
     Base class for API clients.
     """
+    name: str
 
     def respond(
             self,

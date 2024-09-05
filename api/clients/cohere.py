@@ -12,6 +12,7 @@ class CohereClient(BaseClient):
     """
     Cohere API client.
     """
+    name: str = "cohere"
 
     def __init__(self):
         self.client = Client(api_key=os.getenv("COHERE_API_KEY"))

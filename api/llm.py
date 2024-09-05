@@ -1,9 +1,10 @@
 import logging
-from typing import Dict, List, Optional, Tuple
-
-from api.clients import BaseClient, ConversationExchange
 import os
 from tomllib import load
+from typing import List
+
+from api.clients import BaseClient
+
 
 class LLM:
     """
@@ -12,7 +13,6 @@ class LLM:
     _rules_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "prompting_rules"))
 
     client: BaseClient
-
 
     def __init__(
             self,
@@ -28,22 +28,20 @@ class LLM:
         rules = [f for f in rules if f.endswith(".toml")]
         return [f.split(".")[0] for f in rules]
 
-    @staticmethod
-    def get_supported_models(
-            api: Optional[str] = None
-    ) -> List[str]:
-        if api:
-            return [k for k, v in LLM._client_mapper.items() if v[0] == api]
-        else:
-            return [k for k in LLM._client_mapper.keys()]
-
     def optimize_prompt(
             self,
             prompt: str,
             rules: str,
+            model: str,
             **kwargs
     ) -> str:
         """Optimizes the provided prompt using the specified method."""
+        # consistency checks
+        if rules not in self.get_supported_rules():
+            message = f"Rules {rules} not supported"
+            logging.error(message)
+            raise ValueError(message)
+
         _template: str = """
 Turn the image description provided by the user into an optimized prompt for text-to-image diffusion models.
 Follow the rules below when crafting your prompts:
@@ -62,12 +60,6 @@ In addition of the above rules, make sure to satisfy the constraints below order
 Return your prompt as plain text only, with no additional text, introductions or interpretations.
 """
 
-        # consistency checks
-        if rules not in self.get_supported_rules():
-            message = f"Rules {rules} not supported"
-            logging.error(message)
-            raise ValueError(message)
-
         # retrieve prompting rules for the specified model
         with open(os.path.join(self._rules_dir, f"{rules}.toml"), "rb") as fp:
             config = load(fp)
@@ -76,6 +68,7 @@ Return your prompt as plain text only, with no additional text, introductions or
         # compute response
         try:
             response = self.client.respond(
+                model=model,
                 prompt=prompt,
                 system_prompt=_template.replace("<rules>", rules),
                 **kwargs
@@ -91,6 +84,7 @@ Return your prompt as plain text only, with no additional text, introductions or
             self,
             prompt: str,
             goal: str,
+            model: str,
             **kwargs
     ) -> str:
         """Expands the provided prompt with additional details."""
@@ -129,6 +123,7 @@ Return your prompt as plain text only, with no additional text, introductions or
         # compute response
         try:
             response = self.client.respond(
+                model=model,
                 prompt=query,
                 system_prompt=_template,
                 **kwargs

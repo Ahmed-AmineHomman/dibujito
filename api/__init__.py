@@ -4,9 +4,9 @@ import tomllib
 from logging import getLogger
 from typing import Optional
 
+from .clients import APIClientFactory
 from .diffuser import Diffuser
 from .llm import LLM
-from .clients import APIClientFactory
 
 
 def configure_logger(filepath: Optional[str] = None) -> None:
@@ -34,10 +34,6 @@ def get_ui_doc(language: str) -> dict[str, str]:
         with open(os.path.join(directory, f"{language}.toml"), "rb") as fp:
             output = tomllib.load(fp)
     return output
-
-
-def get_supported_llms() -> list[str]:
-    return LLM.get_supported_models()
 
 
 def get_supported_optimizers() -> list[str]:

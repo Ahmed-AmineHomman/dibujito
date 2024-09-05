@@ -5,9 +5,9 @@ from tomllib import load
 
 import gradio as gr
 
-from api import configure_logger, get_ui_doc, get_supported_llms, get_supported_diffusers, get_supported_optimizers, \
+from api import configure_logger, get_ui_doc, get_supported_diffusers, get_supported_optimizers, \
     get_supported_image_ratios
-from app_api import generate_image
+from app_api import generate_image, get_available_llms
 
 
 def load_parameters() -> Namespace:
@@ -82,8 +82,8 @@ def build_ui(
                 llm = gr.Dropdown(
                     label=doc.get("parameter_llm_label"),
                     info=doc.get("parameter_llm_description"),
-                    choices=get_supported_llms(),
-                    value=get_supported_llms()[0],
+                    choices=get_available_llms(),
+                    value=get_available_llms()[0],
                     multiselect=False
                 )
                 diffuser = gr.Dropdown(

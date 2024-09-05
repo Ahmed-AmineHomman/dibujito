@@ -17,6 +17,7 @@ class RWKVClient(BaseClient):
     """
     rwkv.cpp API client.
     """
+    name: str = "rwkv"
 
     def __init__(
             self,

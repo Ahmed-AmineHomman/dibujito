@@ -12,6 +12,7 @@ class OpenAIClient(BaseClient):
     """
     OpenAI API client.
     """
+    name: str = "openai"
 
     def __init__(self):
         self.client = Client(api_key=os.getenv("OPENAI_API_KEY"))

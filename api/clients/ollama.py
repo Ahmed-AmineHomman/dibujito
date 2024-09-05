@@ -12,6 +12,7 @@ class OllamaClient(BaseClient):
     """
     Ollama API client.
     """
+    name: str = "ollama"
 
     def __init__(self):
         self.client = Client(host=os.getenv("OLLAMA_HOST"))
