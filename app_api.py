@@ -1,24 +1,25 @@
 import logging
-from typing import Dict, Tuple, Optional, List
+from typing import Optional
 
 import gradio as gr
 from PIL import Image
 
 from api import Diffuser, LLM
-from api.clients import create_client
 
-LLM_MODEL: LLM
-DIFFUSER_MODEL: Diffuser = Diffuser()
-CLIENT_MAPPER: Dict[str, Tuple[str, str]] = {
-    "command r": ("cohere", "command-r"),
-    "command r+": ("cohere", "command-r-plus"),
-    "gpt4o mini": ("openai", "gpt-4o-mini"),
-    "gpt4o": ("openai", "gpt-4o")
-}
+WRITER: LLM
+ARTIST: Diffuser
 
 
-def get_available_llms() -> List[str]:
-    return [k for k in CLIENT_MAPPER.keys()]
+def load_model(
+        llm: Optional[LLM] = None,
+        diffuser: Optional[Diffuser] = None
+) -> None:
+    if llm:
+        _ = globals()
+        _["WRITER"] = llm
+    if diffuser:
+        _ = globals()
+        _["ARTIST"] = diffuser
 
 
 def log(
@@ -73,32 +74,12 @@ def generate_image(
         guidance: float = 7.0,
         aspect: str = "square",
         seed: Optional[str] = None,
-        llm: Optional[str] = None,
         optimization_level: Optional[str] = "none",
         optimizer_target: Optional[str] = None,
         project: Optional[str] = None,
         progressbar: gr.Progress = gr.Progress()
 ) -> tuple[Image, str]:
     """Generates the image corresponding to the provided prompt."""
-    # consistency checks
-    if (optimization_level != "none") and (not llm):
-        log(
-            message="error: LLM must be provided when requiring prompt optimization",
-            message_type="error",
-        )
-    if llm not in CLIENT_MAPPER.keys():
-        log(message=f"LLM '{llm}' is not supported", message_type="error")
-
-    # configure LLM
-    llm_api, llm_name = CLIENT_MAPPER.get(llm)
-    if not ('LLM_MODEL' in locals()) or ('LLM_MODEL' not in globals()):
-        # create the LLM instance if it does not exist
-        LLM_MODEL = LLM(client=create_client(llm_api))
-    else:
-        if LLM_MODEL.client.name != llm_api:
-            # update API client if it does not correspond to specified model
-            LLM_MODEL.client = create_client(api=llm_api)
-
     # define progressbar levels
     if optimization_level == "strong":
         expand_step = 0.0
@@ -122,7 +103,7 @@ def generate_image(
     if optimization_level == "strong":
         log(message="expanding prompt", progress=expand_step, progressbar=progressbar)
         try:
-            optimized_prompt = LLM_MODEL.expand_prompt(prompt=prompt, goal=project, model=llm_name)
+            optimized_prompt = WRITER.expand_prompt(prompt=prompt, goal=project)
             log(message=f"expanded prompt: {optimized_prompt}")
         except Exception as error:
             log(message=f"Error (prompt expansion): {error}", message_type="error")
@@ -131,21 +112,20 @@ def generate_image(
     if optimization_level in ["strong", "light"]:
         log(message="optimizing prompt", progress=optim_step, progressbar=progressbar)
         try:
-            optimized_prompt = LLM_MODEL.optimize_prompt(prompt=optimized_prompt, rules=optimizer_target,
-                                                         model=llm_name)
+            optimized_prompt = WRITER.optimize_prompt(prompt=optimized_prompt, rules=optimizer_target)
             log(message=f"optimized prompt: {optimized_prompt}")
         except Exception as error:
             log(message=f"Error (prompt optimization): {error}", message_type="error")
 
     log(message="loading diffuser", progress=loading_step, progressbar=progressbar)
     try:
-        DIFFUSER_MODEL.load_model(model=diffuser)
+        ARTIST.load_model(model=diffuser)
     except Exception as error:
         log(message=f"error (model loading): {error}", message_type="error")
 
     log(message="generating image", progress=diffusion_step, progressbar=progressbar)
     try:
-        image = DIFFUSER_MODEL.imagine(
+        image = ARTIST.imagine(
             prompt=optimized_prompt,
             negative_prompt=negative_prompt,
             steps=steps,

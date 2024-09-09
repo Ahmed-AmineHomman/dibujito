@@ -3,4 +3,4 @@ venv
 .env
 
 # configuration files
-/keys.toml
+/config.toml

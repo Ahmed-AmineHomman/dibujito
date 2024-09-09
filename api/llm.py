@@ -13,12 +13,15 @@ class LLM:
     _rules_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "prompting_rules"))
 
     client: BaseClient
+    model: str
 
     def __init__(
             self,
             client: BaseClient,
+            model: str
     ):
         self.client = client
+        self.model = model
 
     @staticmethod
     def get_supported_rules() -> List[str]:
@@ -32,7 +35,6 @@ class LLM:
             self,
             prompt: str,
             rules: str,
-            model: str,
             **kwargs
     ) -> str:
         """Optimizes the provided prompt using the specified method."""
@@ -68,7 +70,7 @@ Return your prompt as plain text only, with no additional text, introductions or
         # compute response
         try:
             response = self.client.respond(
-                model=model,
+                model=self.model,
                 prompt=prompt,
                 system_prompt=_template.replace("<rules>", rules),
                 **kwargs
@@ -84,7 +86,6 @@ Return your prompt as plain text only, with no additional text, introductions or
             self,
             prompt: str,
             goal: str,
-            model: str,
             **kwargs
     ) -> str:
         """Expands the provided prompt with additional details."""
@@ -123,7 +124,7 @@ Return your prompt as plain text only, with no additional text, introductions or
         # compute response
         try:
             response = self.client.respond(
-                model=model,
+                model=self.model,
                 prompt=query,
                 system_prompt=_template,
                 **kwargs

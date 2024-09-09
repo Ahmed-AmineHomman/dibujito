@@ -5,7 +5,6 @@ from api.clients.base import BaseClient
 from api.clients.cohere import CohereClient
 from api.clients.ollama import OllamaClient
 from api.clients.openai import OpenAIClient
-from api.clients.rwkv import RWKVClient
 
 
 class APIClientFactory:
@@ -14,7 +13,8 @@ class APIClientFactory:
     """
     _clients = {
         "cohere": CohereClient,
-        "openai": OpenAIClient
+        "openai": OpenAIClient,
+        "ollama": OllamaClient
     }
 
     @staticmethod
