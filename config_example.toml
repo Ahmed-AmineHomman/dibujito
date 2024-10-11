@@ -1,4 +1,12 @@
-# Rename this file to "config.toml" in the root folder of the solution and set the variables below to their appropriate values.
+# --------------------------------------------------------------------------------------------- #
+# CONFIGURATION FILE
+#
+# This is an example of a configuration file allowing to customize the LLM & Diffuser API used
+# by the app. Rename this file to "config.toml" in the root folder of the solution and set the
+# variables below to their appropriate values.
+#
+# API tokens can usually be obtained in the account management page of the API service provider.
+# --------------------------------------------------------------------------------------------- #
 
 # --------------------------------------------------------------------------------------------- #
 # LLM SECTION
@@ -10,6 +18,7 @@
 # Set the API providing the LLM services. Choose from the following:
 # - openai: https://platform.openai.com
 # - cohere: https://dashboard.cohere.com
+# - anthropic: https://console.anthropic.com/
 # - ollama: https://ollama.com (note that this API requires you to set up your own ollama server on your computer)
 api = "cohere"
 

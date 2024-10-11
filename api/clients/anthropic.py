@@ -1,49 +1,58 @@
 import logging
 import os
-from typing import Optional, List
+from typing import List, Optional, Dict
 
 from PIL import Image
-from ollama import Client
+from anthropic import Anthropic as Client
 
-from api.clients import BaseClient, ConversationExchange
+from .base import ConversationExchange, BaseClient
 
 
-class OllamaClient(BaseClient):
+class AnthropicClient(BaseClient):
     """
-    Ollama API client.
+    Anthropic API client.
     """
-    name: str = "ollama"
+    name: str = "anthropic"
 
     def __init__(self):
-        self.client = Client(host=os.getenv("OLLAMA_HOST"))
+        self.client = Client(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     def respond(
             self,
             prompt: str,
-            model: str = "phi3",
+            model: str = "claude-3-haiku-20240307",
             image_prompt: Optional[Image] = None,
             system_prompt: Optional[str] = None,
             conversation_history: Optional[List[ConversationExchange]] = None,
+            max_tokens: int = 1024,
             **kwargs
     ) -> str:
         if not conversation_history:
             conversation_history = []
 
         # cast conversation history into supported format
-        messages = [dict(role="system", content=system_prompt)]
+        messages: List[Dict[str, str]] = []
         for exchange in conversation_history:
             messages += [
                 dict(role="user", content=exchange.query),
                 dict(role="assistant", content=exchange.response)
             ]
-        messages.append(dict(role="user", content=prompt))
+        messages += [
+            dict(role="user", content=prompt)
+        ]
 
         # request api
         try:
             response = (
-                self.client.chat(model=model, messages=messages)
-                ["message"]
-                ["content"]
+                self.client.messages.create(
+                    model=model,
+                    system=system_prompt,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    **kwargs
+                )
+                .content[0]
+                .text
             )
         except Exception as error:
             message = f"error during API call: {error}"
