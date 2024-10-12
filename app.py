@@ -33,23 +33,16 @@ def load_parameters() -> Namespace:
     return parser.parse_args()
 
 
-def check_configuration(config: dict) -> None:
-    if not config.get("llm").get("model_dir"):
-        raise MissingParameter("cannot find llm model directory in the configuration file")
-    if not config.get("diffuser").get("model_dir"):
-        raise MissingParameter("cannot find diffusers model directory in the configuration file")
-
-
 def build_ui(
         doc: dict,
         diffuser_directory: str,
         llm_directory: str,
-        optimizer_directory: str,
+        rules_directory: str,
 ) -> gr.Blocks:
     """Builds the UI."""
     available_llms = get_model_list(directory=llm_directory, model_type="llm")
     available_diffusers = get_model_list(directory=diffuser_directory, model_type="diffuser")
-    available_optimizers = get_model_list(directory=optimizer_directory, model_type="optimizer")
+    available_optimizers = get_model_list(directory=rules_directory, model_type="optimizer")
 
     with gr.Blocks() as app:
         gr.Markdown(f"# {doc.get('title')}\n\n{doc.get('description')}")
@@ -168,7 +161,7 @@ def build_ui(
                 )
         diffuser_dir = gr.State(diffuser_directory)
         llm_dir = gr.State(llm_directory)
-        optimizer_dir = gr.State(optimizer_directory)
+        optimizer_dir = gr.State(rules_directory)
 
         # UI logic
         generate_image_btn.click(
@@ -180,6 +173,13 @@ def build_ui(
             outputs=[image, optimized_prompt]
         )
     return app
+
+
+def check_configuration(config: dict) -> None:
+    if not config.get("llm").get("directory"):
+        raise MissingParameter("cannot find llm model directory in the configuration file")
+    if not config.get("diffuser").get("directory"):
+        raise MissingParameter("cannot find diffusers model directory in the configuration file")
 
 
 def configure_logger(filepath: Optional[str] = None) -> None:
@@ -196,7 +196,7 @@ def configure_logger(filepath: Optional[str] = None) -> None:
 
 
 def get_ui_doc(language: str) -> dict[str, str]:
-    directory = os.path.join(os.path.dirname(__file__), "locales")
+    directory = os.path.join(os.path.dirname(__file__), "data", "locales")
     available_languages = [f.split(".")[0] for f in os.listdir(directory) if f.endswith(".toml")]
     if language not in available_languages:
         logging.warning(f"unsupported language: {language} -> defaulting to English")
@@ -207,36 +207,43 @@ def get_ui_doc(language: str) -> dict[str, str]:
             output = tomllib.load(fp)
     return output
 
+def get_ui_config() -> dict:
+    directory = "."
+    config_path = "config.toml"
+    default_path = "config_example.toml"
+    try:
+        if not os.path.exists(os.path.join(directory, config_path)):
+            raise FileNotFoundError("cannot find 'config.toml' in the root deposit")
+        with open(os.path.join(directory, config_path), "rb") as fh:
+            config = load(fh)
+        check_configuration(config)
+    except Exception as e:
+        logging.error(e)
+        logging.warning("falling back to default configuration")
+        with open(os.path.join(directory, default_path), "rb") as fh:
+            config = load(fh)
+    return config
+
 
 if __name__ == "__main__":
     parameters = load_parameters()
     configure_logger(filepath=parameters.logpath if parameters.logpath else None)
 
-    logging.info(f"loading UI documentation")
-    ui_doc = get_ui_doc(language=parameters.language)
+    logging.info(f"loading UI locale")
+    doc = get_ui_doc(language=parameters.language)
 
     logging.info("loading config")
-    if not os.path.exists("config.toml"):
-        message = "cannot find 'config.toml' configuration file in the root deposit"
-        logging.error(message)
-        raise Exception(message)
-    with open("config.toml", "rb") as fh:
-        config = load(fh)
-    try:
-        check_configuration(config)
-    except Exception as e:
-        logging.error(e)
-        raise e
+    config = get_ui_config()
 
     logging.info("loading models")
     load_model(llm=LLM(), diffuser=Diffuser())
 
     logging.info(f"building UI")
     app = build_ui(
-        doc=ui_doc,
-        llm_directory=config.get("llm").get("model_dir"),
-        diffuser_directory=config.get("diffuser").get("model_dir"),
-        optimizer_directory=config.get("optimizer").get("model_dir")
+        doc=doc,
+        llm_directory=config.get("llm").get("directory"),
+        diffuser_directory=config.get("diffuser").get("directory"),
+        rules_directory=config.get("prompting_rules").get("directory")
     )
 
     logging.info("running app")

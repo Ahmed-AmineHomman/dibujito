@@ -25,10 +25,10 @@ model_dir = "./models/llms"
 model_dir = "./models/diffusers"
 
 # --------------------------------------------------------------------------------------------- #
-# OPTIMIZERS
+# POMPTING RULES
 #
-# This section corresponds to variables associated with the prompt optimizers, responsible for the
-# text-to-image generation.
+# This section corresponds to variables associated with the prompting rules followed when
+# performing the prompt optimization step.
 # --------------------------------------------------------------------------------------------- #
-[optimizer]
-model_dir = "./prompting_rules"
+[prompting_rules]
+model_dir = "./data/prompting_rules"
