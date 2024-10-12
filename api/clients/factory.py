@@ -5,6 +5,7 @@ from api.clients.base import BaseClient
 from api.clients.cohere import CohereClient
 from api.clients.openai import OpenAIClient
 from api.clients.anthropic import AnthropicClient
+from api.clients.llamacpp import LlamaCppClient
 
 
 class APIClientFactory:
@@ -15,6 +16,7 @@ class APIClientFactory:
         "cohere": CohereClient,
         "openai": OpenAIClient,
         "anthropic": AnthropicClient,
+        "llama.cpp": LlamaCppClient
     }
 
     @staticmethod

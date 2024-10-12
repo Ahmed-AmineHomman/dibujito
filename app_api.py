@@ -1,5 +1,6 @@
 import logging
-from typing import Optional
+import os
+from typing import Optional, List
 
 import gradio as gr
 from PIL import Image
@@ -20,6 +21,15 @@ def load_model(
     if diffuser:
         _ = globals()
         _["ARTIST"] = diffuser
+
+
+def get_model_list(directory: str, model_type: str) -> List[str]:
+    names = []
+    extension = ".gguf" if model_type == "llm" else ".safetensors"
+    for f in os.listdir(directory):
+        if f.endswith(extension):
+            names.append(f)
+    return names
 
 
 def log(
@@ -68,62 +78,61 @@ def log(
 
 def generate_image(
         diffuser: str,
+        diffuser_dir: str,
         prompt: str,
         negative_prompt: Optional[str] = None,
         steps: int = 25,
         guidance: float = 7.0,
         aspect: str = "square",
         seed: Optional[str] = None,
-        optimization_level: Optional[str] = "none",
+        llm: Optional[str] = None,
+        llm_dir: Optional[str] = None,
+        expand_prompt: bool = False,
+        optimize_prompt: bool = False,
         optimizer_target: Optional[str] = None,
         project: Optional[str] = None,
         progressbar: gr.Progress = gr.Progress()
 ) -> tuple[Image, str]:
     """Generates the image corresponding to the provided prompt."""
-    # define progressbar levels
-    if optimization_level == "strong":
-        expand_step = 0.0
-        optim_step = 0.25
-        loading_step = 0.5
-        diffusion_step = 0.6
-    elif optimization_level == "light":
-        expand_step = 0.0
-        optim_step = 0.0
-        loading_step = 0.3
-        diffusion_step = 0.4
-    else:
-        expand_step = 0.0
-        optim_step = 0.0
-        loading_step = 0.0
-        diffusion_step = 0.1
+    # initialize outputs
+    optimized_prompt: str = prompt
+    image: Image.Image = Image.new(mode="RGB", size=(512, 512), color=(0, 0, 0))
 
-    optimized_prompt = prompt
+    log(message="loading llm", progress=0.00, progressbar=progressbar)
+    try:
+        WRITER.load_model(filepath=os.path.join(llm_dir, llm))
+    except Exception as error:
+        log(message=f"error (llm loading): {error}", message_type="error")
 
-    # expand prompt by adding details
-    if optimization_level == "strong":
-        log(message="expanding prompt", progress=expand_step, progressbar=progressbar)
+    if expand_prompt:
+        log(message="expanding prompt", progress=0.05, progressbar=progressbar)
         try:
-            optimized_prompt = WRITER.expand_prompt(prompt=prompt, goal=project)
+            optimized_prompt = WRITER.expand_prompt(
+                prompt=prompt,
+                goal=project,
+            )
             log(message=f"expanded prompt: {optimized_prompt}")
         except Exception as error:
             log(message=f"Error (prompt expansion): {error}", message_type="error")
 
-    # optimize prompt for target model
-    if optimization_level in ["strong", "light"]:
-        log(message="optimizing prompt", progress=optim_step, progressbar=progressbar)
+    if optimize_prompt:
+        log(message="optimizing prompt", progress=0.35, progressbar=progressbar)
         try:
-            optimized_prompt = WRITER.optimize_prompt(prompt=optimized_prompt, rules=optimizer_target)
+            optimized_prompt = WRITER.optimize_prompt(
+                prompt=optimized_prompt,
+                rules=optimizer_target
+            )
             log(message=f"optimized prompt: {optimized_prompt}")
         except Exception as error:
             log(message=f"Error (prompt optimization): {error}", message_type="error")
 
-    log(message="loading diffuser", progress=loading_step, progressbar=progressbar)
+    log(message="loading diffuser", progress=0.65, progressbar=progressbar)
     try:
-        ARTIST.load_model(model=diffuser)
+        ARTIST.load_model(filepath=os.path.join(diffuser_dir, diffuser))
     except Exception as error:
-        log(message=f"error (model loading): {error}", message_type="error")
+        log(message=f"error (diffuser loading): {error}", message_type="error")
 
-    log(message="generating image", progress=diffusion_step, progressbar=progressbar)
+    log(message="generating image", progress=0.7, progressbar=progressbar)
     try:
         image = ARTIST.imagine(
             prompt=optimized_prompt,

@@ -4,7 +4,6 @@ import tomllib
 from logging import getLogger
 from typing import Optional
 
-from .clients import APIClientFactory
 from .diffuser import Diffuser
 from .llm import LLM
 
@@ -38,10 +37,6 @@ def get_ui_doc(language: str) -> dict[str, str]:
 
 def get_supported_optimizers() -> list[str]:
     return LLM.get_supported_rules()
-
-
-def get_supported_diffusers() -> list[str]:
-    return Diffuser.get_supported_models()
 
 
 def get_supported_image_ratios() -> list[str]:

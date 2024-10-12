@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------- #
+# This configuration file describes the prompting rules to follow when
+# optimizing/expanding the prompts for ingestion by a diffuser model
+#
+# If you wish to add your own, copy this file inside the same folder and
+# rename it. Then replace the values below by your rules. You can then
+# make the app use these rules by providing the --rules parameter at
+# launch.
+#
+# Example:
+# 1. Create a file named "simplistic.toml" in the same folder as this file.
+# 2. Write the following in the created file:
+# structure = "1. Subject 2. Action 3. Background"
+# format = "single sentence made of comma-separated keywords"
+# instructions = "be concise and use technical terms when needed"
+# 3. Run the app by specifying adding "--rules simplistic" to the launch
+# command.
+# ---------------------------------------------------------------------- #
+
+# The structure parameter lists in order of importance all the elements that must be contained in the optimized prompt.
+# It describes an "ideal" prompt that the LLM will try to conceive from your prompts.
+structure = """
+a. Subject: The primary focus of the image (e.g., person, animal, object).
+b. Action: Describes what the subject is doing, adding dynamism or narrative.
+c. Environment/Setting: The background or scene surrounding the subject.
+d. Object: Secondary items that enhance the subject or story.
+e. Clothing: Description of the types and styles of garment.
+f. Emotion: The expressed emotion if the subject is sentient.
+g. Color: Dominant colors or color schemes.
+h. Style: The artistic style or method of rendering.
+i. Mood/Atmosphere: The emotional or atmospheric quality.
+j. Lighting: Specific lighting conditions or effects.
+k. Perspective/Viewpoint: The angle or perspective from which the scene is viewed.
+l. Texture/Material: Prominent textures or materials visible in the image.
+m. Time Period: A specific era or historical period.
+n. Cultural Elements: Elements that reflect specific cultures or traditions.
+"""
+
+# The format parameter defines how the prompt must be structured, i.e. its syntax.
+format = "A single sentence composed of comma-separated short phrases or keywords."
+
+# The prefix/suffix parameters define what must be prepended/appended to the final prompt.
+prefix = ""
+suffix = ""
+
+# Guidelines allow to guide or constraint the model when designing its prompts
+guidelines = """
+1. Clarity: Be direct and descriptive. Avoid unnecessary words.
+2. Conciseness: Aim for around 70 words or fewer.
+3. Technicality: Use relevant technical terms from photography or art where appropriate.
+"""
+
+# Examples give the LLM an idea of what a good prompt looks like
+examples = [
+    "young boy running through the streets, 12 years old, urban city center, paved road, holding a newspaper, stylish 19th century cap, worker's clothes, enthusiastic, vibrant and cold colors, fantasy painting, optimistic vibe, sharp contrast, sunny day, frontal medium portrait, 19th century, industrial era"
+]
+

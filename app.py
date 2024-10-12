@@ -7,10 +7,9 @@ from warnings import warn
 import gradio as gr
 from click import MissingParameter
 
-from api import configure_logger, get_ui_doc, get_supported_diffusers, get_supported_optimizers, \
-    get_supported_image_ratios, LLM, Diffuser
+from api import configure_logger, get_ui_doc, get_supported_optimizers, get_supported_image_ratios, LLM, Diffuser
 from api.clients import APIClientFactory
-from app_api import generate_image, load_model
+from app_api import generate_image, load_model, get_model_list
 
 
 def load_parameters() -> Namespace:
@@ -33,22 +32,21 @@ def load_parameters() -> Namespace:
 
 
 def check_configuration(config: dict) -> None:
-    # LLM checks
-    data = config.get("llm")
-    if not data.get("api"):
-        raise MissingParameter("cannot find LLM api in the configuration file")
-    if not data.get("model"):
-        raise MissingParameter("cannot find LLM model in the configuration file")
-    if (data.get("api") == "ollama") and (not data.get("host")):
-        warn(f"requiring {data.get('api')} API but no host url was found -> relying on environment variables")
-    if (data.get("api") in ["cohere", "openai"]) and (not data.get("key")):
-        warn(f"requiring {data.get('api')} API but no access token was found -> relying on environment variables")
+    if not config.get("llm").get("model_dir"):
+        raise MissingParameter("cannot find llm model directory in the configuration file")
+    if not config.get("diffuser").get("model_dir"):
+        raise MissingParameter("cannot find diffusers model directory in the configuration file")
 
 
 def build_ui(
         doc: dict,
+        diffuser_directory: str,
+        llm_directory: str
 ) -> gr.Blocks:
     """Builds the UI."""
+    available_llms = get_model_list(directory=llm_directory, model_type="llm")
+    available_diffusers = get_model_list(directory=diffuser_directory, model_type="diffusers")
+
     with gr.Blocks() as app:
         gr.Markdown(f"# {doc.get('title')}\n\n{doc.get('description')}")
 
@@ -95,19 +93,27 @@ def build_ui(
                     width=1024,
                 )
             with gr.Column(scale=1, variant="default"):
+                llm = gr.Dropdown(
+                    label=doc.get("parameter_llm_label"),
+                    info=doc.get("parameter_llm_description"),
+                    choices=available_llms,
+                    multiselect=False
+                )
                 diffuser = gr.Dropdown(
                     label=doc.get("parameter_diffuser_label"),
                     info=doc.get("parameter_diffuser_description"),
-                    choices=get_supported_diffusers(),
-                    value=get_supported_diffusers()[0],
+                    choices=available_diffusers,
                     multiselect=False
                 )
-                optimization_level = gr.Dropdown(
-                    label=doc.get("parameter_optimization_level_label"),
-                    info=doc.get("parameter_optimization_level_description"),
-                    choices=["none", "light", "strong"],
-                    value="strong",
-                    multiselect=False
+                expand_prompt = gr.Checkbox(
+                    value=True,
+                    label=doc.get("prompt_expansion_label"),
+                    info=doc.get("prompt_expansion_description")
+                )
+                optimize_prompt = gr.Checkbox(
+                    value=True,
+                    label=doc.get("prompt_optimization_label"),
+                    info=doc.get("prompt_optimization_description")
                 )
                 optimization_target = gr.Dropdown(
                     label=doc.get("parameter_optimization_target_label"),
@@ -154,13 +160,15 @@ def build_ui(
                     maximum=1000000000,
                     step=1,
                 )
+        diffuser_dir = gr.State(diffuser_directory)
+        llm_dir = gr.State(llm_directory)
 
         # UI logic
         generate_image_btn.click(
             fn=generate_image,
             inputs=[
-                diffuser, prompt, negative_prompt, steps, guidance, aspect, seed,
-                optimization_level, optimization_target, project
+                diffuser, diffuser_dir, prompt, negative_prompt, steps, guidance, aspect, seed,
+                llm, llm_dir, expand_prompt, optimize_prompt, optimization_target, project
             ],
             outputs=[image, optimized_prompt]
         )
@@ -187,27 +195,14 @@ if __name__ == "__main__":
         logging.error(e)
         raise e
 
-    logging.info("setting up app")
-    api = config.get("llm").get("api")
-    if config.get("llm").get("key"):
-        os.environ[f"{api.upper()}_API_KEY"] = config.get("llm").get("key")
-    if config.get("llm").get("host"):
-        os.environ[f"{api.upper()}_HOST"] = config.get("llm").get("host")
-
-    logging.info("loading LLM")
-    load_model(
-        llm=LLM(
-            client=APIClientFactory.create(api=config.get("llm").get("api")),
-            model=config.get("llm").get("model")
-        )
-    )
-
-    logging.info("loading diffuser")
-    load_model(diffuser=Diffuser())
+    logging.info("loading models")
+    load_model(llm=LLM(), diffuser=Diffuser())
 
     logging.info(f"building UI")
     app = build_ui(
         doc=ui_doc,
+        llm_directory=config.get("llm").get("model_dir"),
+        diffuser_directory=config.get("diffuser").get("model_dir"),
     )
 
     logging.info("running app")

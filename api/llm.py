@@ -1,27 +1,68 @@
 import logging
 import os
 from tomllib import load
-from typing import List
+from typing import List, Optional, Dict
+from pathlib import Path
 
 from api.clients import BaseClient
+from llama_cpp import Llama
 
 
 class LLM:
     """
     Class managing the interactions with LLM models.
     """
-    _rules_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "data", "prompting_rules"))
+    _rules_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "prompting_rules"))
+    _prompt_template: str = """
+Turn the image description provided by the user into an optimized prompt for text-to-image diffusion models.
+Return your prompt as plain text only, with no additional text, introductions or interpretations.
 
-    client: BaseClient
-    model: str
+<instructions>
+
+Structure your prompt according to the provided structure, and ensure it is formatted according to the provided format.
+Finally, follow the provided guidelines when designing your prompt.
+
+---
+Format:
+<format>
+
+Structure:
+<structure>
+
+Guidelines:
+<guidelines>
+
+Examples:
+<examples>
+---
+"""
+
+    ready: bool
+    model_path: str
+    llm: Llama
+    rules: Dict[str, str]
 
     def __init__(
             self,
-            client: BaseClient,
-            model: str
+            filepath: Optional[str] = None,
+            rules: str = "default"
     ):
-        self.client = client
-        self.model = model
+        self.ready = False
+        self.model_path = ""
+
+        # load model from file
+        if filepath:
+            self.load_model(filepath=filepath)
+
+        # retrieve prompting rules
+        _rules = rules
+        if _rules not in self.get_supported_rules():
+            message = "provided rules cannot be found -> skipping to default"
+            logging.warning(message)
+            _rules = "default"
+        with open(os.path.join(self._rules_dir, f"{_rules}.toml"), "rb") as fp:
+            self.rules = load(fp)
+
 
     @staticmethod
     def get_supported_rules() -> List[str]:
@@ -31,107 +72,122 @@ class LLM:
         rules = [f for f in rules if f.endswith(".toml")]
         return [f.split(".")[0] for f in rules]
 
+    def load_model(self, filepath: str) -> None:
+        """ Loads a llama.cpp-compatible model from the provided filepath. """
+        # consistency checks
+        if self.ready:
+            if filepath == self.model_path:
+                logging.info("skipping pipeline load since filepath points to a previously loaded file")
+                return
+        fp = Path(filepath)
+        if not fp.exists():
+            message = "provided filepath does not exist"
+            logging.error(message)
+            raise Exception(message)
+        if not fp.is_file():
+            message = "provided filepath does not points to a file"
+            logging.error(message)
+            raise Exception(message)
+        if fp.suffix != ".gguf":
+            message = "only gguf files are supported"
+            logging.error(message)
+            raise Exception(message)
+
+        # load model
+        self.llm = Llama(
+            model_path=filepath,
+            n_ctx=4096,
+            chat_format="llama-2"
+        )
+
+        # update status
+        self.ready = True
+        self.model_path = filepath
+
     def optimize_prompt(
             self,
             prompt: str,
-            rules: str,
+            goal: Optional[str] = "Create beautiful and aesthetically pleasing images",
+            creative_mode: bool = False,
             **kwargs
     ) -> str:
         """Optimizes the provided prompt using the specified method."""
-        # consistency checks
-        if rules not in self.get_supported_rules():
-            message = f"Rules {rules} not supported"
-            logging.error(message)
-            raise ValueError(message)
-
-        _template: str = """
-Turn the image description provided by the user into an optimized prompt for text-to-image diffusion models.
-Follow the rules below when crafting your prompts:
-
----
-<rules>
----
-
-In addition of the above rules, make sure to satisfy the constraints below ordered by importance:
-
-1. Clarity: Be direct and descriptive. Avoid unnecessary words.
-2. Accuracy: Reflect the user's description precisely, without omissions.
-3. Conciseness: Aim for around 50 words or fewer.
-4. Technicality: Use relevant technical terms from photography or art where appropriate.
-
-Return your prompt as plain text only, with no additional text, introductions or interpretations.
+        # set instructions
+        instructions = "Ensure that your prompt reflects all the information contained in the user's description."
+        query = f"Description:\n{prompt}"
+        if not creative_mode:
+            instructions += """
+Do not add elements of your own and only use elements extracted from the user's description.
+If you cannot specify a part of the provided structure because of this, skip it.
 """
+        else:
+            instructions = """
+Ensure that your prompt specifies all parts of the provided structure.
+Fill the gaps left by the user's description by inventing elements that concord with the user's goal.
+"""
+            query += f"\nGoal:\n{goal}"
 
-        # retrieve prompting rules for the specified model
-        with open(os.path.join(self._rules_dir, f"{rules}.toml"), "rb") as fp:
-            config = load(fp)
-        rules = f"{config.get('rules')}"
+        # compute prompt
+        output = self._respond(
+            prompt=prompt,
+            system_prompt=self._build_instructions(instructions),
+            stop=["\n"],
+            **kwargs
+        )
 
-        # compute response
-        try:
-            response = self.client.respond(
-                model=self.model,
-                prompt=prompt,
-                system_prompt=_template.replace("<rules>", rules),
-                **kwargs
-            )
-        except Exception as error:
-            message = f"error during API call: {error}"
-            logging.error(message)
-            raise ValueError(message)
+        # apply post-processing
+        output = f"{self.rules.get('prefix', '')},{output},{self.rules.get('suffix', '')}"
+        output = output.replace(".", ",")
+        output = [_ for _ in output.split(',') if len(_) > 0]
+        output = ",".join(output)
 
-        return response
+        return output
 
-    def expand_prompt(
+    def _respond(
             self,
             prompt: str,
-            goal: str,
+            system_prompt: Optional[str] = None,
             **kwargs
     ) -> str:
-        """Expands the provided prompt with additional details."""
-        _template: str = """
-Enhance the user provided image or scene descriptions by adding appropriate details.
-If the user also provides an end goal, take it into account when designing your description.
-Return a single natural language paragraph detailing all the elements below:
+        # consistency checks
+        if not self.ready:
+            message = "No model loaded. Please call `load_model` to load a model first."
+            logging.error(message)
+            raise RuntimeError(message)
 
-- Subject: the primary focus of the image (e.g., person, animal, object).
-- Action: what the subject is doing, adding dynamism or narrative.
-- Environment/Setting: the background or scene surrounding the subject.
-- Style: The artistic style (eg. oil painting, charcoal drawing, etc.) or method of rendering (photography, digital art, etc.).
-- Color: Dominant colors or color schemes.
-- Mood/Atmosphere: The emotional or atmospheric quality.
-- Lighting: Specific lighting conditions or effects.
-- Perspective/Viewpoint: The angle or perspective from which the scene is viewed.
+        # cast conversation history into supported format
+        messages: List[Dict[str, str]] = []
+        if system_prompt:
+            messages += [dict(role="system", content=system_prompt)]
+        messages += [dict(role="user", content=prompt)]
 
-In addition, ensure to satisfy the constraints below ordered by importance:
-
-1. Clarity: craft each part of your prompt to be direct and descriptive, avoiding unnecessary verbosity.
-2. Accuracy: ensure your prompt is true to the user's description and misses nothing in it.
-3. Creativity: fill in the gaps, i.e. invent details for each element left unspecified by the user's description.
-4. Technicality: use appropriate technical Photographic, Painting or Artistic terms when relevant.
-
-Return your prompt as plain text only, with no additional text, introductions or interpretations.
-"""
-
-        if not goal:
-            goal = "Create detailed and aesthetically pleasing images."
-
-        # define query
-        query = f"---\nImage description: {prompt}\n---"
-        if goal:
-            query += f"End goal: {goal}\n---"
-
-        # compute response
+        # request api
         try:
-            response = self.client.respond(
-                model=self.model,
-                prompt=query,
-                system_prompt=_template,
-                **kwargs
+            response = (
+                self.llm
+                .create_chat_completion(
+                    messages=messages,
+                    **kwargs
+                )
+                .get("choices")[0]
+                .get("message")
+                .get("content")
             )
         except Exception as error:
             message = f"error during API call: {error}"
             logging.error(message)
-            raise ValueError(message)
+            raise Exception(message)
 
         return response
+
+    def _build_instructions(self, instructions: str) -> str:
+        """ Builds the system prompt from the prompting rules & provided instructions. """
+        return (
+            self._prompt_template
+            .replace("<instructions>", instructions)
+            .replace("<format>", self.rules.get("format", ""))
+            .replace("<structure>", self.rules.get("structure", ""))
+            .replace("<guidelines>", self.rules.get("guidelines", ""))
+            .replace("<examples>", "\n".join(self.rules.get("examples", [])))
+        )
+

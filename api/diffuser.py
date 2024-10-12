@@ -1,25 +1,25 @@
 import logging
-import os
-from json import load
+from pathlib import Path
 from typing import Optional, List
 
 import torch
 from PIL import Image
-from diffusers import StableDiffusionPipeline, AutoPipelineForText2Image
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
+from safetensors.torch import load_file
 
 
 class Diffuser:
     """
     Class implementing the diffusion text-to-image model.
 
-    It is based on the ``diffusers`` library, and is compatible with any stable-diffusion 1.5 based models.
+    It is based on the ``diffusers`` library, and is compatible with any model based on stable-diffusion 1.5 or SDXL.
     """
     pipeline: StableDiffusionPipeline
+    model_path: str
     cuda: bool
     ready: bool
+    architecture: str
 
-    _config_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "api", "data", "diffusers"))
-    _config: dict = {}
     _aspect_mapper = {
         "sd1": {"square": (512, 512), "portrait": (768, 512), "landscape": (512, 768)},
         "sdxl": {"square": (1024, 1024), "portrait": (1280, 960), "landscape": (960, 1280)}
@@ -27,49 +27,58 @@ class Diffuser:
 
     def __init__(
             self,
-            model: Optional[str] = None
+            filepath: Optional[str] = None
     ):
         self.ready = False
+        self.model_path = ""
         self.cuda = torch.cuda.is_available()
-        if model:
-            self.load_model(model=model)
-
-    @staticmethod
-    def get_supported_models() -> List[str]:
-        output = os.listdir(Diffuser._config_dir)
-        output = [f for f in output if os.path.isfile(os.path.join(Diffuser._config_dir, f))]
-        output = [f for f in output if f.endswith(".json")]
-        return [f.split(".")[0] for f in output]
+        if filepath:
+            self.load_model(filepath=filepath)
 
     @staticmethod
     def get_supported_aspects() -> List[str]:
         return ["square", "portrait", "landscape"]
 
-    def load_model(self, model: str) -> None:
+    def load_model(self, filepath: str) -> None:
         """ Resets the pipeline with the provided model. """
-        if model not in self.get_supported_models():
-            message = f"Unsupported model '{model}'"
+        # consistency checks
+        if self.ready:
+            if filepath == self.model_path:
+                logging.info("skipping pipeline load since filepath points to a previously loaded file")
+                return
+        fp = Path(filepath)
+        if not fp.exists():
+            message = "provided filepath does not exist"
             logging.error(message)
-            raise ValueError(message)
+            raise Exception(message)
+        if not fp.is_file():
+            message = "provided filepath does not points to a file"
+            logging.error(message)
+            raise Exception(message)
+        if fp.suffix != ".safetensors":
+            message = "only safetensors files are supported"
+            logging.error(message)
+            raise Exception(message)
 
         # load pipeline
-        if self._config.get("name") == model:
-            pass
-        else:
-            # load model configuration
-            with open(os.path.join(self._config_dir, f"{model}.json"), "rb") as fh:
-                self._config = load(fh)
+        is_sd1 = len(load_file(filepath)) < 2000
+        self.architecture = "sd1" if is_sd1 else "sdxl"  # assume its sd1-based=
+        self.pipeline = (
+            (StableDiffusionPipeline if is_sd1 else StableDiffusionXLPipeline)
+            .from_single_file(
+                pretrained_model_link_or_path=filepath,
+                torch_dtype=torch.float16
+            )
+        )
 
-            # load pipeline
-            params = self._set_pipeline_parameters()
-            self.pipeline = AutoPipelineForText2Image.from_pretrained(**params)
+        # apply optimizations
+        if self.cuda:
+            self.pipeline = self.pipeline.to("cuda")
+            self.pipeline.enable_model_cpu_offload()
 
-            # apply optimizations
-            if self.cuda:
-                self.pipeline = self.pipeline.to("cuda")
-                self.pipeline.enable_model_cpu_offload()
-
-            self.ready = True
+        # update instance status
+        self.ready = True
+        self.model_path = filepath
 
     def imagine(
             self,
@@ -92,13 +101,14 @@ class Diffuser:
             raise ValueError(message)
 
         # define diffusion parameters
-        params = self._set_generation_parameters(
+        params = dict(
             prompt=prompt,
             negative_prompt=negative_prompt,
-            aspect=aspect,
-            steps=steps,
-            guidance=guidance,
-            seed=seed
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            width=self._aspect_mapper[self.architecture][aspect][0],
+            height=self._aspect_mapper[self.architecture][aspect][1],
+            generator=torch.Generator().manual_seed(seed) if seed else torch.Generator(),
         )
 
         # generate image
@@ -110,38 +120,3 @@ class Diffuser:
             raise error
 
         return image
-
-    def _set_pipeline_parameters(
-            self,
-    ) -> dict:
-        params = dict(
-            pretrained_model_or_path=self._config.get("deposit"),
-            token=os.getenv("HF_API_KEY")
-        )
-        if self.cuda:
-            if self._config.get("cuda").get("float16"):
-                params["torch_dtype"] = torch.float16
-            if "variant" in self._config.get("cuda").keys():
-                params["variant"] = self._config.get("cuda").get("variant")
-        if self._config.get("safetensors"):
-            params["use_safetensors"] = True
-        return params
-
-    def _set_generation_parameters(
-            self,
-            prompt: str,
-            negative_prompt: str,
-            aspect: str,
-            steps: int,
-            guidance: float,
-            seed: Optional[int] = None
-    ) -> dict:
-        return dict(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            num_inference_steps=steps,
-            guidance_scale=guidance,
-            width=self._aspect_mapper[self._config.get("architecture")][aspect][0],
-            height=self._aspect_mapper[self._config.get("architecture")][aspect][1],
-            generator=torch.Generator().manual_seed(seed) if seed else torch.Generator(),
-        )

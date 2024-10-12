@@ -1,13 +1,10 @@
 gradio
-transformers
 torch
 diffusers
 safetensors
-accelerate
-peft
 pillow
-requests
-ollama
 openai
 cohere
 anthropic
+click
+llama_cpp_python

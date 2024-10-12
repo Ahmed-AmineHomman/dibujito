@@ -4,47 +4,22 @@
 # This is an example of a configuration file allowing to customize the LLM & Diffuser API used
 # by the app. Rename this file to "config.toml" in the root folder of the solution and set the
 # variables below to their appropriate values.
-#
-# API tokens can usually be obtained in the account management page of the API service provider.
 # --------------------------------------------------------------------------------------------- #
 
 # --------------------------------------------------------------------------------------------- #
-# LLM SECTION
+# LLM
 #
-# This section corresponds to variables associated with the LLM behind the prompt optimization.
+# This section corresponds to variables associated with the LLM, responsible for the automatic
+# prompt improvements. behind the prompt operations.
 # --------------------------------------------------------------------------------------------- #
 [llm]
+model_dir = "./models/llms"
 
-# Set the API providing the LLM services. Choose from the following:
-# - openai: https://platform.openai.com
-# - cohere: https://dashboard.cohere.com
-# - anthropic: https://console.anthropic.com/
-# - ollama: https://ollama.com (note that this API requires you to set up your own ollama server on your computer)
-api = "cohere"
-
-# Set the model label corresponding to the LLM you wish to use.
-model = "command-r"
-
-# Set the API access token (or key) if needed.
-# Cloud-hosted APIs usually require an access token identifying the user behind the request in order to comply.
-# Specify here this token if you intend to use one of such API (openai, cohere, etc.).
-# Comment if you do not need an API key.
-key = "xxx"
-
-# Set the API base url if needed.
-# Some API (like ollama) require you to set a host or base url.
-# Comment if you are using an API that does not require it.
-# host = "localhost"
-
-# ---------------------------------------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------------------------- #
 # DIFFUSER
 #
-# This section corresponds to every configuration variables related to the text to image diffusion AI model.
-# ---------------------------------------------------------------------------------------------------------- #
+# This section corresponds to variables associated with the Diffusers, responsible for the
+# text-to-image generation.
+# --------------------------------------------------------------------------------------------- #
 [diffuser]
-
-# Set the Hugging Face Hub (https://huggingface.co) access token.
-# Some model require to be identified (gated models) in order to allow the download.
-# Create your free access token at the following url: https://huggingface.co/settings/tokens
-hfhub_token = "xxx"
-
+model_dir = "./models/diffusers"
