@@ -53,7 +53,7 @@ def log(
         message_type: str = "info",
         progress: Optional[float] = 0.0,
         progressbar: Optional[gr.Progress] = None,
-        show_in_ui: bool = True
+        show_in_ui: bool = False
 ) -> None:
     """
     Logs the provided message.

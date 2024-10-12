@@ -13,7 +13,7 @@
 # prompt improvements. behind the prompt operations.
 # --------------------------------------------------------------------------------------------- #
 [llm]
-model_dir = "./models/llms"
+directory = "./models/llms"
 
 # --------------------------------------------------------------------------------------------- #
 # DIFFUSER
@@ -22,7 +22,7 @@ model_dir = "./models/llms"
 # text-to-image generation.
 # --------------------------------------------------------------------------------------------- #
 [diffuser]
-model_dir = "./models/diffusers"
+directory = "./models/diffusers"
 
 # --------------------------------------------------------------------------------------------- #
 # POMPTING RULES
@@ -31,4 +31,4 @@ model_dir = "./models/diffusers"
 # performing the prompt optimization step.
 # --------------------------------------------------------------------------------------------- #
 [prompting_rules]
-model_dir = "./data/prompting_rules"
+directory = "./data/prompting_rules"
