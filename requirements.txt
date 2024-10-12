@@ -8,3 +8,4 @@ cohere
 anthropic
 click
 llama_cpp_python
+toml

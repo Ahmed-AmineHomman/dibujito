@@ -23,3 +23,12 @@ model_dir = "./models/llms"
 # --------------------------------------------------------------------------------------------- #
 [diffuser]
 model_dir = "./models/diffusers"
+
+# --------------------------------------------------------------------------------------------- #
+# OPTIMIZERS
+#
+# This section corresponds to variables associated with the prompt optimizers, responsible for the
+# text-to-image generation.
+# --------------------------------------------------------------------------------------------- #
+[optimizer]
+model_dir = "./prompting_rules"

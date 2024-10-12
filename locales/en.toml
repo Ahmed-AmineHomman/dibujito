@@ -44,18 +44,20 @@ parameter_diffuser_description = """
 Choose your desired text-to-image diffusion model.
 The diffuser is in charge of generating an image corresponding to the provided prompt.
 """
-parameter_optimization_level_label = "Prompt Optimization Level"
-parameter_optimization_level_description = """
-Choose the strength of the prompt optimization.
-"none" performs no prompt optimization.
-"light" only optimizes your prompt with the chosen method (see below).
-"strong" allows the LLM to invent part of the image description according to your project.
+parameter_rules_label = "Prompt Optimization Rules"
+parameter_rules_description = """
+Choose the rules to follow for the prompt optimization step.
 """
-parameter_optimization_target_label = "Prompt Optimization Method"
-parameter_optimization_target_description = """
-Choose the prompt optimization method.
-"tags" will create prompts structured as a comma-separated list of tags & keywords whereas "descriptive" will allow the use of short sentences instead of tags.
-SD1-based models usually produce better results with "tags" prompts.
+parameter_optimization_label = "Activate Prompt Optimization"
+parameter_optimization_description = """
+If checked, a prompt optimization step will be performed prior to the image generation.
+This operation is performed by the chosen LLM, according to the chosen rules.
+"""
+parameter_creative_optimization_label = "Activate Creative Prompt Optimization"
+parameter_creative_optimization_description = """
+If checked, the LLM will allow to expand your prompt by adding elements that will benefint the resulting images.
+If unchecked, the LLM will only perform a reorganization & reformulation of your prompt.
+In both cases, the LLM will follow the chosen rules above.
 """
 parameter_negative_prompt_label = "Prompt (negative)"
 parameter_negative_prompt_description = """

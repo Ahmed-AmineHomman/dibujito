@@ -4,8 +4,9 @@ from typing import Optional, List
 
 import gradio as gr
 from PIL import Image
+from jedi.debug import warning
 
-from api import Diffuser, LLM
+from api import Diffuser, LLM, PromptingRules
 
 WRITER: LLM
 ARTIST: Diffuser
@@ -23,11 +24,26 @@ def load_model(
         _["ARTIST"] = diffuser
 
 
-def get_model_list(directory: str, model_type: str) -> List[str]:
+def get_model_list(
+        directory: str,
+        model_type: str
+) -> List[str]:
+    # default variables
+    extension_mapper = dict(
+        llm=".gguf",
+        diffuser=".safetensors",
+        optimizer=".toml"
+    )
+
+    # consistency checks
+    if model_type not in extension_mapper.keys():
+        message = f"unsupported model type {model_type}"
+        log(message=message, message_type="error")
+
+    # get list
     names = []
-    extension = ".gguf" if model_type == "llm" else ".safetensors"
     for f in os.listdir(directory):
-        if f.endswith(extension):
+        if f.endswith(extension_mapper.get(model_type)):
             names.append(f)
     return names
 
@@ -37,7 +53,7 @@ def log(
         message_type: str = "info",
         progress: Optional[float] = 0.0,
         progressbar: Optional[gr.Progress] = None,
-        show_in_ui: bool = False
+        show_in_ui: bool = True
 ) -> None:
     """
     Logs the provided message.
@@ -64,10 +80,10 @@ def log(
             gr.Info(message)
     elif message_type == "warning":
         logging.warning(message)
-        gr.Warning(message)
+        warning(gr.Warning(message))
     elif message_type == "error":
         logging.error(message)
-        gr.Error(message)
+        raise gr.Error(message)
     else:
         error_message = f"unknown message type '{message_type}' (supported are 'info', 'warning' and 'error')"
         logging.error(error_message)
@@ -87,9 +103,10 @@ def generate_image(
         seed: Optional[str] = None,
         llm: Optional[str] = None,
         llm_dir: Optional[str] = None,
-        expand_prompt: bool = False,
+        prompting_rules: Optional[str] = None,
+        rules_dir: Optional[str] = None,
         optimize_prompt: bool = False,
-        optimizer_target: Optional[str] = None,
+        creative_expansion: bool = False,
         project: Optional[str] = None,
         progressbar: gr.Progress = gr.Progress()
 ) -> tuple[Image, str]:
@@ -98,33 +115,31 @@ def generate_image(
     optimized_prompt: str = prompt
     image: Image.Image = Image.new(mode="RGB", size=(512, 512), color=(0, 0, 0))
 
-    log(message="loading llm", progress=0.00, progressbar=progressbar)
-    try:
-        WRITER.load_model(filepath=os.path.join(llm_dir, llm))
-    except Exception as error:
-        log(message=f"error (llm loading): {error}", message_type="error")
-
-    if expand_prompt:
-        log(message="expanding prompt", progress=0.05, progressbar=progressbar)
+    if llm:
+        log(message="loading llm", progress=0.00, progressbar=progressbar)
         try:
-            optimized_prompt = WRITER.expand_prompt(
-                prompt=prompt,
-                goal=project,
-            )
-            log(message=f"expanded prompt: {optimized_prompt}")
+            WRITER.load_model(filepath=os.path.join(llm_dir, llm))
         except Exception as error:
-            log(message=f"Error (prompt expansion): {error}", message_type="error")
+            log(message=f"error (llm loading): {error}", message_type="error")
 
-    if optimize_prompt:
-        log(message="optimizing prompt", progress=0.35, progressbar=progressbar)
-        try:
-            optimized_prompt = WRITER.optimize_prompt(
-                prompt=optimized_prompt,
-                rules=optimizer_target
-            )
-            log(message=f"optimized prompt: {optimized_prompt}")
-        except Exception as error:
-            log(message=f"Error (prompt optimization): {error}", message_type="error")
+        if optimize_prompt:
+            log(message="loading prompting rules", progress=0.05, progressbar=progressbar)
+            try:
+                rules = PromptingRules.from_toml(filepath=os.path.join(rules_dir, prompting_rules))
+            except Exception as error:
+                log(message=f"error (rules loading): {error}", message_type="error")
+
+            log(message="expanding prompt", progress=0.05, progressbar=progressbar)
+            try:
+                optimized_prompt = WRITER.optimize_prompt(
+                    prompt=prompt,
+                    goal=project,
+                    creative_mode=creative_expansion,
+                    rules=rules
+                )
+                log(message=f"expanded prompt: {optimized_prompt}")
+            except Exception as error:
+                log(message=f"Error (prompt expansion): {error}", message_type="error")
 
     log(message="loading diffuser", progress=0.65, progressbar=progressbar)
     try:

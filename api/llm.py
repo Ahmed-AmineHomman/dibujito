@@ -1,18 +1,17 @@
 import logging
 import os
-from tomllib import load
-from typing import List, Optional, Dict
 from pathlib import Path
+from typing import List, Optional, Dict
 
-from api.clients import BaseClient
 from llama_cpp import Llama
+
+from .prompting_rules import PromptingRules
 
 
 class LLM:
     """
     Class managing the interactions with LLM models.
     """
-    _rules_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "prompting_rules"))
     _prompt_template: str = """
 Turn the image description provided by the user into an optimized prompt for text-to-image diffusion models.
 Return your prompt as plain text only, with no additional text, introductions or interpretations.
@@ -40,12 +39,10 @@ Examples:
     ready: bool
     model_path: str
     llm: Llama
-    rules: Dict[str, str]
 
     def __init__(
             self,
             filepath: Optional[str] = None,
-            rules: str = "default"
     ):
         self.ready = False
         self.model_path = ""
@@ -53,16 +50,6 @@ Examples:
         # load model from file
         if filepath:
             self.load_model(filepath=filepath)
-
-        # retrieve prompting rules
-        _rules = rules
-        if _rules not in self.get_supported_rules():
-            message = "provided rules cannot be found -> skipping to default"
-            logging.warning(message)
-            _rules = "default"
-        with open(os.path.join(self._rules_dir, f"{_rules}.toml"), "rb") as fp:
-            self.rules = load(fp)
-
 
     @staticmethod
     def get_supported_rules() -> List[str]:
@@ -107,6 +94,7 @@ Examples:
     def optimize_prompt(
             self,
             prompt: str,
+            rules: PromptingRules,
             goal: Optional[str] = "Create beautiful and aesthetically pleasing images",
             creative_mode: bool = False,
             **kwargs
@@ -130,16 +118,19 @@ Fill the gaps left by the user's description by inventing elements that concord 
         # compute prompt
         output = self._respond(
             prompt=prompt,
-            system_prompt=self._build_instructions(instructions),
+            system_prompt=self._build_instructions(rules=rules, instructions=instructions),
             stop=["\n"],
             **kwargs
         )
 
         # apply post-processing
-        output = f"{self.rules.get('prefix', '')},{output},{self.rules.get('suffix', '')}"
+        if len(rules.prefix) > 0:
+            output = f"{rules.prefix}, {output}"
+        if len(rules.suffix) > 0:
+            output += f", {rules.suffix}"
         output = output.replace(".", ",")
-        output = [_ for _ in output.split(',') if len(_) > 0]
-        output = ",".join(output)
+        output = [_.strip().lower() for _ in output.split(',') if len(_) > 0]
+        output = ", ".join(output)
 
         return output
 
@@ -180,14 +171,13 @@ Fill the gaps left by the user's description by inventing elements that concord 
 
         return response
 
-    def _build_instructions(self, instructions: str) -> str:
+    def _build_instructions(self, rules: PromptingRules, instructions: str) -> str:
         """ Builds the system prompt from the prompting rules & provided instructions. """
         return (
             self._prompt_template
             .replace("<instructions>", instructions)
-            .replace("<format>", self.rules.get("format", ""))
-            .replace("<structure>", self.rules.get("structure", ""))
-            .replace("<guidelines>", self.rules.get("guidelines", ""))
-            .replace("<examples>", "\n".join(self.rules.get("examples", [])))
+            .replace("<format>", rules.format)
+            .replace("<structure>", rules.structure)
+            .replace("<guidelines>", rules.guidelines)
+            .replace("<examples>", "\n".join(rules.examples))
         )
-

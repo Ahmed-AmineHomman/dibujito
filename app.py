@@ -1,14 +1,16 @@
 import logging
+import os
 import os.path
+import tomllib
 from argparse import ArgumentParser, Namespace
+from logging import getLogger
 from tomllib import load
-from warnings import warn
+from typing import Optional
 
 import gradio as gr
 from click import MissingParameter
 
-from api import configure_logger, get_ui_doc, get_supported_optimizers, get_supported_image_ratios, LLM, Diffuser
-from api.clients import APIClientFactory
+from api import get_supported_image_ratios, LLM, Diffuser
 from app_api import generate_image, load_model, get_model_list
 
 
@@ -41,11 +43,13 @@ def check_configuration(config: dict) -> None:
 def build_ui(
         doc: dict,
         diffuser_directory: str,
-        llm_directory: str
+        llm_directory: str,
+        optimizer_directory: str,
 ) -> gr.Blocks:
     """Builds the UI."""
     available_llms = get_model_list(directory=llm_directory, model_type="llm")
-    available_diffusers = get_model_list(directory=diffuser_directory, model_type="diffusers")
+    available_diffusers = get_model_list(directory=diffuser_directory, model_type="diffuser")
+    available_optimizers = get_model_list(directory=optimizer_directory, model_type="optimizer")
 
     with gr.Blocks() as app:
         gr.Markdown(f"# {doc.get('title')}\n\n{doc.get('description')}")
@@ -62,28 +66,28 @@ def build_ui(
         with gr.Row(equal_height=True):
             with gr.Column(scale=3, variant="default"):
                 with gr.Row(equal_height=True):
-                    prompt = gr.TextArea(
-                        label=doc.get('prompt_label'),
-                        placeholder=doc.get("prompt_placeholder"),
-                        interactive=True,
-                        container=False,
-                        lines=2,
-                        max_lines=3,
-                        scale=3
-                    )
+                    with gr.Column(scale=3, variant="default"):
+                        prompt = gr.TextArea(
+                            label=doc.get('prompt_label'),
+                            placeholder=doc.get("prompt_placeholder"),
+                            interactive=True,
+                            container=False,
+                            lines=1,
+                            max_lines=3,
+                        )
+                        optimized_prompt = gr.TextArea(
+                            label=doc.get("optimized_prompt_label"),
+                            placeholder=doc.get("optimized_prompt_placeholder"),
+                            interactive=False,
+                            container=False,
+                            lines=1,
+                            max_lines=3,
+                        )
                     generate_image_btn = gr.Button(
                         value=doc.get("generate_image_button"),
                         variant="primary",
                         scale=1,
                     )
-                optimized_prompt = gr.TextArea(
-                    label=doc.get("optimized_prompt_label"),
-                    placeholder=doc.get("optimized_prompt_placeholder"),
-                    interactive=False,
-                    container=False,
-                    lines=2,
-                    max_lines=3,
-                )
                 image = gr.Image(
                     label=doc.get("image_label"),
                     format="png",
@@ -97,30 +101,32 @@ def build_ui(
                     label=doc.get("parameter_llm_label"),
                     info=doc.get("parameter_llm_description"),
                     choices=available_llms,
+                    value=available_llms[0],
                     multiselect=False
                 )
                 diffuser = gr.Dropdown(
                     label=doc.get("parameter_diffuser_label"),
                     info=doc.get("parameter_diffuser_description"),
                     choices=available_diffusers,
+                    value=available_diffusers[0],
                     multiselect=False
                 )
-                expand_prompt = gr.Checkbox(
-                    value=True,
-                    label=doc.get("prompt_expansion_label"),
-                    info=doc.get("prompt_expansion_description")
+                prompting_rules = gr.Dropdown(
+                    label=doc.get("parameter_rules_label"),
+                    info=doc.get("parameter_rules_description"),
+                    choices=available_optimizers,
+                    value=available_optimizers[0],
+                    multiselect=False
                 )
                 optimize_prompt = gr.Checkbox(
                     value=True,
-                    label=doc.get("prompt_optimization_label"),
-                    info=doc.get("prompt_optimization_description")
+                    label=doc.get("parameter_optimization_label"),
+                    info=doc.get("parameter_optimization_description")
                 )
-                optimization_target = gr.Dropdown(
-                    label=doc.get("parameter_optimization_target_label"),
-                    info=doc.get("parameter_optimization_target_description"),
-                    choices=get_supported_optimizers(),
-                    value=get_supported_optimizers()[0],
-                    multiselect=False
+                creative_expansion = gr.Checkbox(
+                    value=True,
+                    label=doc.get("parameter_creative_optimization_label"),
+                    info=doc.get("parameter_creative_optimization_description")
                 )
                 negative_prompt = gr.TextArea(
                     label=doc.get("parameter_negative_prompt_label"),
@@ -162,17 +168,44 @@ def build_ui(
                 )
         diffuser_dir = gr.State(diffuser_directory)
         llm_dir = gr.State(llm_directory)
+        optimizer_dir = gr.State(optimizer_directory)
 
         # UI logic
         generate_image_btn.click(
             fn=generate_image,
             inputs=[
                 diffuser, diffuser_dir, prompt, negative_prompt, steps, guidance, aspect, seed,
-                llm, llm_dir, expand_prompt, optimize_prompt, optimization_target, project
+                llm, llm_dir, prompting_rules, optimizer_dir, optimize_prompt, creative_expansion, project
             ],
             outputs=[image, optimized_prompt]
         )
     return app
+
+
+def configure_logger(filepath: Optional[str] = None) -> None:
+    """Configures the logger."""
+    logger = getLogger()
+    logger.setLevel(logging.INFO)
+    if filepath:
+        file_handler = logging.FileHandler(filepath)
+        file_handler.setLevel(logging.INFO)
+        logger.addHandler(file_handler)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    logger.addHandler(console_handler)
+
+
+def get_ui_doc(language: str) -> dict[str, str]:
+    directory = os.path.join(os.path.dirname(__file__), "locales")
+    available_languages = [f.split(".")[0] for f in os.listdir(directory) if f.endswith(".toml")]
+    if language not in available_languages:
+        logging.warning(f"unsupported language: {language} -> defaulting to English")
+        with open(os.path.join(directory, f"en.toml"), "rb") as fp:
+            output = tomllib.load(fp)
+    else:
+        with open(os.path.join(directory, f"{language}.toml"), "rb") as fp:
+            output = tomllib.load(fp)
+    return output
 
 
 if __name__ == "__main__":
@@ -203,6 +236,7 @@ if __name__ == "__main__":
         doc=ui_doc,
         llm_directory=config.get("llm").get("model_dir"),
         diffuser_directory=config.get("diffuser").get("model_dir"),
+        optimizer_directory=config.get("optimizer").get("model_dir")
     )
 
     logging.info("running app")
