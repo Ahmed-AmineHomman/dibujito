@@ -19,7 +19,17 @@
 
 # The structure parameter lists in order of importance all the elements that must be contained in the optimized prompt.
 # It describes an "ideal" prompt that the LLM will try to conceive from your prompts.
-structure = """
+rules = """
+Return an optimized prompt consisting in a single sentence made of comma-separated short phrases or keywords.
+The diffusion model will assign each text between comas with a concept and try to mix it all in when generating the image.
+Therefore, start by describing "major" concepts and continue with "minor" concepts.
+Then, if relevant, finish by adding quality tags related to secondary elements of the image
+Avoid using "ands" or "ors" to separate concepts, as commas are here for this.
+However, you can use an "and" INSIDE a concept if it hels its description.
+Explicitely describe all the concepts appearing in the image (eg. instead of writing "a trinket" or "holding an object", describe and name said trinket or object).
+
+You'll find below a non-exhaustive list of concepts, ordered by importance, that your optimized prompt MUST describe:
+
 a. Subject: The primary focus of the image (e.g., person, animal, object).
 b. Action: Describes what the subject is doing, adding dynamism or narrative.
 c. Environment/Setting: The background or scene surrounding the subject.
@@ -28,27 +38,20 @@ e. Clothing: Description of the types and styles of garment.
 f. Emotion: The expressed emotion if the subject is sentient.
 g. Color: Dominant colors or color schemes.
 h. Style: The artistic style or method of rendering.
-i. Mood/Atmosphere: The emotional or atmospheric quality.
-j. Lighting: Specific lighting conditions or effects.
 k. Perspective/Viewpoint: The angle or perspective from which the scene is viewed.
-l. Texture/Material: Prominent textures or materials visible in the image.
-m. Time Period: A specific era or historical period.
-n. Cultural Elements: Elements that reflect specific cultures or traditions.
+
+If the user prompt does not explicit one or several of the above concepts, fill the gaps according to the user's goal.
+
+You'll find below a non-exhaustive list of concepts related to the quality tags:
+- Mood/Atmosphere: The emotional or atmospheric quality.
+- Lighting: Specific lighting conditions or effects.
+- Texture/Material: Prominent textures or materials visible in the image.
+- Time Period: A specific era or historical period.
+- Cultural Elements: Elements that reflect specific cultures or traditions.
 """
 
-# The format parameter defines how the prompt must be structured, i.e. its syntax.
-format = "A single sentence composed of comma-separated short phrases or keywords."
-
-# The prefix/suffix parameters define what must be prepended/appended to the final prompt.
 prefix = ""
 suffix = ""
-
-# Guidelines allow to guide or constraint the model when designing its prompts
-guidelines = """
-1. Clarity: Be direct and descriptive. Avoid unnecessary words.
-2. Conciseness: Aim for around 70 words or fewer.
-3. Technicality: Use relevant technical terms from photography or art where appropriate.
-"""
 
 # Examples give the LLM an idea of what a good prompt looks like
 examples = [

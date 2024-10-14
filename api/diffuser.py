@@ -21,8 +21,8 @@ class Diffuser:
     architecture: str
 
     _aspect_mapper = {
-        "sd1": {"square": (512, 512), "portrait": (768, 512), "landscape": (512, 768)},
-        "sdxl": {"square": (1024, 1024), "portrait": (1280, 960), "landscape": (960, 1280)}
+        "sd1": {"square": (512, 512), "portrait": (512, 640), "landscape": (640, 512)},
+        "sdxl": {"square": (1024, 1024), "portrait": (960, 1280), "landscape": (1280, 960)}
     }
 
     def __init__(

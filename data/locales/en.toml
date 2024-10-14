@@ -22,42 +22,40 @@ Be detailed in your image description.
 Write naturally.
 No need to optimize your prompt; the app will do it for you.
 """
-prompt_label = "Prompt"
-prompt_placeholder = "Write what you want your image to display here..."
-optimized_prompt_label = "Prompt (optimized)"
-optimized_prompt_placeholder = "The actual prompt sent to the AI will be displayed here."
+llm_prompt_label = "Prompt (LLM)"
+llm_prompt_placeholder = "Prompt sent to the LLM."
+diffuser_prompt_label = "Prompt (diffuser)"
+diffuser_prompt_placeholder = "Prompt sent to the diffuser."
 image_label = "Image"
-generate_image_button = "Generate"
-optimizer_box_label = "Prompt Optimization"
-optimizer_box_description = """
-Check to activate the automatic prompt optimization.
-"""
+generate_prompt_button = "Generate Prompt"
+generate_image_button = "Generate Image"
 
-# diffusion parameters
+# llm parameters
 parameter_llm_label = "LLM"
 parameter_llm_description = """
 Choose your desired large language model (LLM).
 The LLM will be in charge of optimizing and enhancing your prompt prior to sending it to the Diffuser.
 """
+parameter_rules_label = "Prompting Rules"
+parameter_rules_description = """
+Choose the rules file specifying the prompting rules that the LLM will follow when optimizing your prompt.
+"""
+parameter_llm_temperature_label = "Temperature"
+parameter_llm_temperature_description = """
+The temperature controls how creative the LLM will be when outputting its response.
+In this use case, you should prefer relatevely high values (close to 1).
+"""
+parameter_llm_seed_label = "Random Seed"
+parameter_llm_seed_description = """
+Seed controlling the generation of the LLM (for reproducibility).
+Set to -1 for random.
+"""
+
+# diffusion parameters
 parameter_diffuser_label = "Diffuser"
 parameter_diffuser_description = """
 Choose your desired text-to-image diffusion model.
 The diffuser is in charge of generating an image corresponding to the provided prompt.
-"""
-parameter_rules_label = "Prompt Optimization Rules"
-parameter_rules_description = """
-Choose the rules to follow for the prompt optimization step.
-"""
-parameter_optimization_label = "Activate Prompt Optimization"
-parameter_optimization_description = """
-If checked, a prompt optimization step will be performed prior to the image generation.
-This operation is performed by the chosen LLM, according to the chosen rules.
-"""
-parameter_creative_optimization_label = "Activate Creative Prompt Optimization"
-parameter_creative_optimization_description = """
-If checked, the LLM will allow to expand your prompt by adding elements that will benefint the resulting images.
-If unchecked, the LLM will only perform a reorganization & reformulation of your prompt.
-In both cases, the LLM will follow the chosen rules above.
 """
 parameter_negative_prompt_label = "Prompt (negative)"
 parameter_negative_prompt_description = """

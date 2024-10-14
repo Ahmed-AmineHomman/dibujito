@@ -92,54 +92,55 @@ def log(
         progressbar(progress=progress, desc=message)
 
 
+def generate_prompt(
+        prompt: str,
+        llm: str,
+        llm_dir: str,
+        rules: str,
+        rules_dir: str,
+        project: str,
+        temperature: float = 0.5,
+        seed: int = -1
+) -> str:
+    try:
+        WRITER.load_model(filepath=os.path.join(llm_dir, llm))
+    except Exception as error:
+        log(message=f"error (llm loading): {error}", message_type="error")
+
+    try:
+        rules = PromptingRules.from_toml(filepath=os.path.join(rules_dir, rules))
+    except Exception as error:
+        log(message=f"error (rules loading): {error}", message_type="error")
+
+    # compute response
+    response = WRITER.optimize_prompt(
+        prompt=prompt,
+        goal=project,
+        creative_mode=True,
+        rules=rules,
+        temperature=temperature,
+        seed=seed if seed >= 0 else None,
+    )
+    output = ""
+    for chunk in response:
+        output += chunk
+        yield output
+
+
 def generate_image(
+        prompt: str,
         diffuser: str,
         diffuser_dir: str,
-        prompt: str,
         negative_prompt: Optional[str] = None,
         steps: int = 25,
         guidance: float = 7.0,
         aspect: str = "square",
-        seed: Optional[str] = None,
-        llm: Optional[str] = None,
-        llm_dir: Optional[str] = None,
-        prompting_rules: Optional[str] = None,
-        rules_dir: Optional[str] = None,
-        optimize_prompt: bool = False,
-        creative_expansion: bool = False,
-        project: Optional[str] = None,
+        seed: Optional[int] = -1,
         progressbar: gr.Progress = gr.Progress()
-) -> tuple[Image, str]:
+) -> Image:
     """Generates the image corresponding to the provided prompt."""
     # initialize outputs
-    optimized_prompt: str = prompt
     image: Image.Image = Image.new(mode="RGB", size=(512, 512), color=(0, 0, 0))
-
-    if llm:
-        log(message="loading llm", progress=0.00, progressbar=progressbar)
-        try:
-            WRITER.load_model(filepath=os.path.join(llm_dir, llm))
-        except Exception as error:
-            log(message=f"error (llm loading): {error}", message_type="error")
-
-        if optimize_prompt:
-            log(message="loading prompting rules", progress=0.05, progressbar=progressbar)
-            try:
-                rules = PromptingRules.from_toml(filepath=os.path.join(rules_dir, prompting_rules))
-            except Exception as error:
-                log(message=f"error (rules loading): {error}", message_type="error")
-
-            log(message="expanding prompt", progress=0.05, progressbar=progressbar)
-            try:
-                optimized_prompt = WRITER.optimize_prompt(
-                    prompt=prompt,
-                    goal=project,
-                    creative_mode=creative_expansion,
-                    rules=rules
-                )
-                log(message=f"expanded prompt: {optimized_prompt}")
-            except Exception as error:
-                log(message=f"Error (prompt expansion): {error}", message_type="error")
 
     log(message="loading diffuser", progress=0.65, progressbar=progressbar)
     try:
@@ -150,14 +151,14 @@ def generate_image(
     log(message="generating image", progress=0.7, progressbar=progressbar)
     try:
         image = ARTIST.imagine(
-            prompt=optimized_prompt,
+            prompt=prompt,
             negative_prompt=negative_prompt,
             steps=steps,
             guidance=guidance,
             aspect=aspect,
-            seed=eval(seed) if seed else None,
+            seed=seed if seed >= 0 else None,
         )
     except Exception as error:
         log(message=f"Error (image gen): {error}", message_type="error")
 
-    return image, optimized_prompt
+    return image

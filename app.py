@@ -11,7 +11,7 @@ import gradio as gr
 from click import MissingParameter
 
 from api import get_supported_image_ratios, LLM, Diffuser
-from app_api import generate_image, load_model, get_model_list
+from app_api import generate_image, generate_prompt, load_model, get_model_list
 
 
 def load_parameters() -> Namespace:
@@ -59,28 +59,37 @@ def build_ui(
         with gr.Row(equal_height=True):
             with gr.Column(scale=3, variant="default"):
                 with gr.Row(equal_height=True):
-                    with gr.Column(scale=3, variant="default"):
-                        prompt = gr.TextArea(
-                            label=doc.get('prompt_label'),
-                            placeholder=doc.get("prompt_placeholder"),
-                            interactive=True,
-                            container=False,
-                            lines=1,
-                            max_lines=3,
-                        )
-                        optimized_prompt = gr.TextArea(
-                            label=doc.get("optimized_prompt_label"),
-                            placeholder=doc.get("optimized_prompt_placeholder"),
-                            interactive=False,
-                            container=False,
-                            lines=1,
-                            max_lines=3,
-                        )
+                    llm_prompt = gr.TextArea(
+                        label=doc.get('llm_prompt_label'),
+                        placeholder=doc.get("llm_prompt_placeholder"),
+                        interactive=True,
+                        container=False,
+                        lines=1,
+                        max_lines=5,
+                        scale=3
+                    )
+                    generate_prompt_btn = gr.Button(
+                        value=doc.get("generate_prompt_button"),
+                        variant="secondary",
+                        scale=1,
+                    )
+                with gr.Row(equal_height=True):
+                    diffuser_prompt = gr.TextArea(
+                        label=doc.get("diffuser_prompt_label"),
+                        placeholder=doc.get("diffuser_prompt_placeholder"),
+                        interactive=True,
+                        container=False,
+                        lines=1,
+                        max_lines=5,
+                        scale=3
+                    )
                     generate_image_btn = gr.Button(
                         value=doc.get("generate_image_button"),
                         variant="primary",
                         scale=1,
                     )
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=3, variant="default"):
                 image = gr.Image(
                     label=doc.get("image_label"),
                     format="png",
@@ -90,87 +99,97 @@ def build_ui(
                     width=1024,
                 )
             with gr.Column(scale=1, variant="default"):
-                llm = gr.Dropdown(
-                    label=doc.get("parameter_llm_label"),
-                    info=doc.get("parameter_llm_description"),
-                    choices=available_llms,
-                    value=available_llms[0],
-                    multiselect=False
-                )
-                diffuser = gr.Dropdown(
-                    label=doc.get("parameter_diffuser_label"),
-                    info=doc.get("parameter_diffuser_description"),
-                    choices=available_diffusers,
-                    value=available_diffusers[0],
-                    multiselect=False
-                )
-                prompting_rules = gr.Dropdown(
-                    label=doc.get("parameter_rules_label"),
-                    info=doc.get("parameter_rules_description"),
-                    choices=available_optimizers,
-                    value=available_optimizers[0],
-                    multiselect=False
-                )
-                optimize_prompt = gr.Checkbox(
-                    value=True,
-                    label=doc.get("parameter_optimization_label"),
-                    info=doc.get("parameter_optimization_description")
-                )
-                creative_expansion = gr.Checkbox(
-                    value=True,
-                    label=doc.get("parameter_creative_optimization_label"),
-                    info=doc.get("parameter_creative_optimization_description")
-                )
-                negative_prompt = gr.TextArea(
-                    label=doc.get("parameter_negative_prompt_label"),
-                    info=doc.get("parameter_negative_prompt_description"),
-                    interactive=True,
-                    container=True,
-                    lines=1,
-                    max_lines=3
-                )
-                steps = gr.Slider(
-                    label=doc.get("parameter_steps_label"),
-                    info=doc.get("parameter_steps_description"),
-                    minimum=1,
-                    maximum=50,
-                    value=25,
-                    step=1
-                )
-                guidance = gr.Slider(
-                    label=doc.get("parameter_guidance_label"),
-                    info=doc.get("parameter_guidance_description"),
-                    minimum=1,
-                    maximum=15,
-                    value=7,
-                    step=0.5
-                )
-                aspect = gr.Dropdown(
-                    label=doc.get("parameter_aspect_label"),
-                    info=doc.get("parameter_aspect_description"),
-                    choices=get_supported_image_ratios(),
-                    value=get_supported_image_ratios()[0],
-                )
-                seed = gr.Number(
-                    label=doc.get("parameter_seed_label"),
-                    info=doc.get("parameter_seed_description"),
-                    value=None,
-                    minimum=0,
-                    maximum=1000000000,
-                    step=1,
-                )
+                with gr.Tab("LLM"):
+                    llm = gr.Dropdown(
+                        label=doc.get("parameter_llm_label"),
+                        info=doc.get("parameter_llm_description"),
+                        choices=available_llms,
+                        value=available_llms[0],
+                        multiselect=False
+                    )
+                    prompting_rules = gr.Dropdown(
+                        label=doc.get("parameter_rules_label"),
+                        info=doc.get("parameter_rules_description"),
+                        choices=available_optimizers,
+                        value=available_optimizers[0],
+                        multiselect=False
+                    )
+                    llm_temperature = gr.Slider(
+                        label=doc.get("parameter_llm_temperature_label"),
+                        info=doc.get("parameter_llm_temperature_description"),
+                        value=0.2,
+                        minimum=0.0,
+                        maximum=1.0,
+                        step=0.05,
+                    )
+                    llm_seed = gr.Number(
+                        label=doc.get("parameter_llm_seed_label"),
+                        info=doc.get("parameter_llm_seed_description"),
+                        value=-1,
+                        minimum=-1,
+                        maximum=1000000000,
+                        step=1,
+                    )
+                with gr.Tab("Diffuser"):
+                    diffuser = gr.Dropdown(
+                        label=doc.get("parameter_diffuser_label"),
+                        info=doc.get("parameter_diffuser_description"),
+                        choices=available_diffusers,
+                        value=available_diffusers[0],
+                        multiselect=False
+                    )
+                    negative_prompt = gr.TextArea(
+                        label=doc.get("parameter_negative_prompt_label"),
+                        info=doc.get("parameter_negative_prompt_description"),
+                        interactive=True,
+                        container=True,
+                        lines=1,
+                        max_lines=3
+                    )
+                    steps = gr.Slider(
+                        label=doc.get("parameter_steps_label"),
+                        info=doc.get("parameter_steps_description"),
+                        minimum=1,
+                        maximum=50,
+                        value=25,
+                        step=1
+                    )
+                    guidance = gr.Slider(
+                        label=doc.get("parameter_guidance_label"),
+                        info=doc.get("parameter_guidance_description"),
+                        minimum=1,
+                        maximum=15,
+                        value=7,
+                        step=0.5
+                    )
+                    aspect = gr.Dropdown(
+                        label=doc.get("parameter_aspect_label"),
+                        info=doc.get("parameter_aspect_description"),
+                        choices=get_supported_image_ratios(),
+                        value=get_supported_image_ratios()[0],
+                    )
+                    diffuser_seed = gr.Number(
+                        label=doc.get("parameter_seed_label"),
+                        info=doc.get("parameter_seed_description"),
+                        value=-1,
+                        minimum=-1,
+                        maximum=1000000000,
+                        step=1,
+                    )
         diffuser_dir = gr.State(diffuser_directory)
         llm_dir = gr.State(llm_directory)
-        optimizer_dir = gr.State(rules_directory)
+        rules_dir = gr.State(rules_directory)
 
         # UI logic
+        generate_prompt_btn.click(
+            fn=generate_prompt,
+            inputs=[llm_prompt, llm, llm_dir, prompting_rules, rules_dir, project, llm_temperature, llm_seed],
+            outputs=[diffuser_prompt]
+        )
         generate_image_btn.click(
             fn=generate_image,
-            inputs=[
-                diffuser, diffuser_dir, prompt, negative_prompt, steps, guidance, aspect, seed,
-                llm, llm_dir, prompting_rules, optimizer_dir, optimize_prompt, creative_expansion, project
-            ],
-            outputs=[image, optimized_prompt]
+            inputs=[diffuser_prompt, diffuser, diffuser_dir, negative_prompt, steps, guidance, aspect, diffuser_seed],
+            outputs=[image]
         )
     return app
 
