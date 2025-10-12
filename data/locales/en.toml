@@ -22,13 +22,11 @@ Be detailed in your image description.
 Write naturally.
 No need to optimize your prompt; the app will do it for you.
 """
-llm_prompt_label = "Prompt (LLM)"
-llm_prompt_placeholder = "Prompt sent to the LLM."
-diffuser_prompt_label = "Prompt (diffuser)"
-diffuser_prompt_placeholder = "Prompt sent to the diffuser."
+prompt_label = "Prompt (diffuser)"
+prompt_placeholder = "Prompt sent to the diffuser."
 image_label = "Image"
-generate_prompt_button = "Generate Prompt"
-generate_image_button = "Generate Image"
+improve_button = "Improve"
+generate_button = "Generate"
 
 # llm parameters
 parameter_llm_label = "LLM"

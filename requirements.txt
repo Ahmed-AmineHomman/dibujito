@@ -1,11 +1,11 @@
 gradio
 torch
+transformers
 diffusers
 safetensors
 pillow
-openai
-cohere
-anthropic
 click
 llama_cpp_python
 toml
+jedi
+accelerate>=0.17.0

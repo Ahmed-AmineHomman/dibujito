@@ -56,49 +56,35 @@ def build_ui(
         )
 
         gr.Markdown(f"## {doc.get('generation_title')}\n\n{doc.get('generation_description')}")
-        with gr.Row(equal_height=True):
-            with gr.Column(scale=3, variant="default"):
-                with gr.Row(equal_height=True):
-                    llm_prompt = gr.TextArea(
-                        label=doc.get('llm_prompt_label'),
-                        placeholder=doc.get("llm_prompt_placeholder"),
-                        interactive=True,
-                        container=False,
-                        lines=1,
-                        max_lines=5,
-                        scale=3
-                    )
-                    generate_prompt_btn = gr.Button(
-                        value=doc.get("generate_prompt_button"),
-                        variant="secondary",
-                        scale=1,
-                    )
-                with gr.Row(equal_height=True):
-                    diffuser_prompt = gr.TextArea(
-                        label=doc.get("diffuser_prompt_label"),
-                        placeholder=doc.get("diffuser_prompt_placeholder"),
-                        interactive=True,
-                        container=False,
-                        lines=1,
-                        max_lines=5,
-                        scale=3
-                    )
-                    generate_image_btn = gr.Button(
-                        value=doc.get("generate_image_button"),
-                        variant="primary",
-                        scale=1,
-                    )
-        with gr.Row(equal_height=True):
+        with gr.Row(equal_height=False):
             with gr.Column(scale=3, variant="default"):
                 image = gr.Image(
                     label=doc.get("image_label"),
                     format="png",
                     type="pil",
-                    container=True,
-                    height=1024,
-                    width=1024,
+                    container=False,
                 )
-            with gr.Column(scale=1, variant="default"):
+                with gr.Row(equal_height=True):
+                    prompt = gr.Text(
+                        label=doc.get("diffuser_prompt_label"),
+                        placeholder=doc.get("diffuser_prompt_placeholder"),
+                        interactive=True,
+                        container=False,
+                        lines=5,
+                        scale=3
+                    )
+                    with gr.Column(scale=1):
+                        improve_btn = gr.Button(
+                            value=doc.get("improve_button"),
+                            variant="secondary",
+                            scale=1,
+                        )
+                        generate_btn = gr.Button(
+                            value=doc.get("generate_button"),
+                            variant="primary",
+                            scale=1,
+                        )
+            with gr.Column(scale=2, variant="panel"):
                 with gr.Tab("LLM"):
                     llm = gr.Dropdown(
                         label=doc.get("parameter_llm_label"),
@@ -181,14 +167,14 @@ def build_ui(
         rules_dir = gr.State(rules_directory)
 
         # UI logic
-        generate_prompt_btn.click(
+        improve_btn.click(
             fn=generate_prompt,
-            inputs=[llm_prompt, llm, llm_dir, prompting_rules, rules_dir, project, llm_temperature, llm_seed],
-            outputs=[diffuser_prompt]
+            inputs=[prompt, llm, llm_dir, prompting_rules, rules_dir, project, llm_temperature, llm_seed],
+            outputs=[prompt]
         )
-        generate_image_btn.click(
+        generate_btn.click(
             fn=generate_image,
-            inputs=[diffuser_prompt, diffuser, diffuser_dir, negative_prompt, steps, guidance, aspect, diffuser_seed],
+            inputs=[prompt, diffuser, diffuser_dir, negative_prompt, steps, guidance, aspect, diffuser_seed],
             outputs=[image]
         )
     return app
@@ -225,6 +211,7 @@ def get_ui_doc(language: str) -> dict[str, str]:
         with open(os.path.join(directory, f"{language}.toml"), "rb") as fp:
             output = tomllib.load(fp)
     return output
+
 
 def get_ui_config() -> dict:
     directory = "."
