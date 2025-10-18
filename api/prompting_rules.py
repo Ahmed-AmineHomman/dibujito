@@ -1,52 +1,43 @@
-from typing import List, Optional
+from __future__ import annotations
 
-from toml import load, dump
+from dataclasses import dataclass, field
+from typing import Any, Dict, List
+
+from toml import dump, load
 
 
+@dataclass(frozen=True)
 class PromptingRules:
-    """
-    Class defining the various rules for prompt optimization.
-    """
+    """Serializable container describing how prompts should be optimised."""
+
     rules: str
-    prefix: str
-    suffix: str
-    examples: List[str]
+    prefix: str = ""
+    suffix: str = ""
+    examples: List[str] = field(default_factory=list)
 
-    def __init__(
-            self,
-            rules: str,
-            prefix: Optional[str] = "",
-            suffix: Optional[str] = "",
-            examples: Optional[List[str]] = None,
-    ):
-        if not examples:
-            examples = []
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "rules": self.rules,
+            "prefix": self.prefix,
+            "suffix": self.suffix,
+            "examples": list(self.examples),
+        }
 
-        self.rules = rules
-        self.prefix = prefix
-        self.suffix = suffix
-        self.examples = [e for e in examples]
-
-    def to_dict(self) -> dict:
-        return dict(
-            rules=self.rules,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            examples=self.examples
-        )
-
-    @staticmethod
-    def from_dict(config: dict):
-        return PromptingRules(
-            rules=config.get("rules"),
+    @classmethod
+    def from_dict(cls, config: Dict[str, Any]) -> "PromptingRules":
+        return cls(
+            rules=config.get("rules", ""),
             prefix=config.get("prefix", ""),
             suffix=config.get("suffix", ""),
-            examples=config.get("examples", [])
+            examples=config.get("examples", []),
         )
 
-    def to_toml(self, filepath) -> None:
-        dump(o=self.to_dict(), f=filepath)
+    def to_toml(self, filepath: str) -> None:
+        with open(filepath, "w", encoding="utf-8") as handle:
+            dump(self.to_dict(), handle)
 
-    @staticmethod
-    def from_toml(filepath: str):
-        return PromptingRules.from_dict(load(f=filepath))
+    @classmethod
+    def from_toml(cls, filepath: str) -> "PromptingRules":
+        with open(filepath, "r", encoding="utf-8") as handle:
+            data = load(handle)
+        return cls.from_dict(data)

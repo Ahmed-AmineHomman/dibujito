@@ -1,226 +1,318 @@
+from __future__ import annotations
+
 import logging
-import os
+from dataclasses import dataclass
+from pathlib import Path
 from queue import Queue
 from threading import Thread
-from typing import Optional, List
+from typing import Iterator, List, Optional
 
 import gradio as gr
 from PIL import Image
-from jedi.debug import warning
 
 from api import Diffuser, LLM, PromptingRules
 
-WRITER: LLM
-ARTIST: Diffuser
+logger = logging.getLogger(__name__)
 
 
-def load_model(
-        llm: Optional[LLM] = None,
-        diffuser: Optional[Diffuser] = None
-) -> None:
-    if llm:
-        _ = globals()
-        _["WRITER"] = llm
-    if diffuser:
-        _ = globals()
-        _["ARTIST"] = diffuser
+@dataclass
+class ModelRegistry:
+    """Keeps track of the currently loaded backend models"""
+
+    writer: Optional[LLM] = None
+    artist: Optional[Diffuser] = None
+
+    def register(self, llm: Optional[LLM] = None, diffuser: Optional[Diffuser] = None) -> None:
+        if llm is not None:
+            self.writer = llm
+        if diffuser is not None:
+            self.artist = diffuser
+
+    def require_writer(self) -> LLM:
+        if self.writer is None:
+            message = "No LLM registered. Call `load_model` during startup to provide one."
+            logger.error(message)
+            raise RuntimeError(message)
+        return self.writer
+
+    def require_artist(self) -> Diffuser:
+        if self.artist is None:
+            message = "No diffuser registered. Call `load_model` during startup to provide one."
+            logger.error(message)
+            raise RuntimeError(message)
+        return self.artist
 
 
-def get_model_list(
-        directory: str,
-        model_type: str
-) -> List[str]:
-    # default variables
-    extension_mapper = dict(
-        llm=".gguf",
-        diffuser=".safetensors",
-        optimizer=".toml"
-    )
+MODELS = ModelRegistry()
 
-    # consistency checks
-    if model_type not in extension_mapper.keys():
-        message = f"unsupported model type {model_type}"
-        log(message=message, message_type="error")
 
-    # get list
-    names = []
-    for f in os.listdir(directory):
-        if f.endswith(extension_mapper.get(model_type)):
-            names.append(f)
+def load_model(llm: Optional[LLM] = None, diffuser: Optional[Diffuser] = None) -> None:
+    """Registers the provided models so downstream helpers can access them at runtime."""
+    MODELS.register(llm=llm, diffuser=diffuser)
+
+
+def get_model_list(directory: str, model_type: str) -> List[str]:
+    """Returns the list of supported model files contained in ``directory``."""
+    extension_mapper = {
+        "llm": ".gguf",
+        "diffuser": ".safetensors",
+        "optimizer": ".toml",
+    }
+
+    if model_type not in extension_mapper:
+        message = f"Unsupported model type '{model_type}'."
+        logger.error(message)
+        raise ValueError(message)
+
+    path = Path(directory)
+    if not path.exists():
+        message = f"Directory '{directory}' does not exist."
+        logger.error(message)
+        raise FileNotFoundError(message)
+
+    suffix = extension_mapper[model_type]
+    names = sorted(entry.name for entry in path.iterdir() if entry.is_file() and entry.suffix == suffix)
+    if not names:
+        logger.warning("No '%s' files found in '%s'.", suffix, directory)
     return names
 
 
-def log(
-        message: str,
-        message_type: str = "info",
-        progress: Optional[float] = 0.0,
-        progressbar: Optional[gr.Progress] = None,
-        show_in_ui: bool = False
-) -> None:
-    """
-    Logs the provided message.
-
-    This method will also display the message in the Gradio UI if ``show_in_ui`` is True or if ``message_type`` is
-    'warning' or 'error'.
-
-    Parameters
-    ----------
+def log(  # noqa: D401 - keep docstring short and focused
     message: str,
-        The message to log.
-    message_type: str, {"info", "warning", "error"}, defaults "info",
-        Severity of the message.
-    progress: float, optional, default 0.0,
-        Progress of the task corresponding to the message.
-    progressbar: gr.Progress, optional, default None,
-        If provided, displays the message in the corresponding progress bar.
-    show_in_ui: bool, optional, default False,
-        If set to ``True``, displays the message in the Gradio UI even if ``message_type`` is set to ``"info"``.
-    """
-    if message_type == "info":
-        logging.info(message)
-        if show_in_ui:
-            gr.Info(message)
-    elif message_type == "warning":
-        logging.warning(message)
-        warning(gr.Warning(message))
-    elif message_type == "error":
-        logging.error(message)
-        raise gr.Error(message)
-    else:
+    message_type: str = "info",
+    progress: Optional[float] = 0.0,
+    progressbar: Optional[gr.Progress] = None,
+    show_in_ui: bool = False,
+) -> None:
+    """Log a message and optionally surface it in the Gradio UI."""
+    level_handlers = {
+        "info": logger.info,
+        "warning": logger.warning,
+        "error": logger.error,
+    }
+
+    if message_type not in level_handlers:
         error_message = f"unknown message type '{message_type}' (supported are 'info', 'warning' and 'error')"
-        logging.error(error_message)
+        logger.error(error_message)
         raise gr.Error(error_message)
+
+    level_handlers[message_type](message)
+    _notify_ui(message=message, severity=message_type, force=show_in_ui)
+
     if progressbar is not None:
         progressbar(progress=progress, desc=message)
 
+    if message_type == "error":
+        raise gr.Error(message)
+
+
+def _notify_ui(message: str, severity: str, force: bool) -> None:
+    """Render a Gradio notification if needed."""
+    display_in_ui = force or severity in {"warning", "error"}
+    if not display_in_ui:
+        return
+
+    component_name = {
+        "info": "Info",
+        "warning": "Warning",
+    }.get(severity, "Info")
+
+    if severity == "error":
+        return
+
+    component = getattr(gr, component_name, None)
+    if component is not None:
+        component(message)  # type: ignore[callable-async]
+
 
 def generate_prompt(
-        prompt: str,
-        llm: str,
-        llm_dir: str,
-        rules: str,
-        rules_dir: str,
-        project: str,
-        temperature: float = 0.5,
-        seed: int = -1
-) -> str:
-    try:
-        WRITER.load_model(filepath=os.path.join(llm_dir, llm))
-    except Exception as error:
-        log(message=f"error (llm loading): {error}", message_type="error")
+    prompt: str,
+    llm: str,
+    llm_dir: str,
+    rules: str,
+    rules_dir: str,
+    project: str,
+    temperature: float = 0.5,
+    seed: int = -1,
+) -> Iterator[str]:
+    """Stream optimized prompt chunks generated by the configured LLM."""
+    writer = MODELS.require_writer()
+    _load_writer_model(writer=writer, model_dir=llm_dir, model_name=llm)
+    rule_set = _load_prompting_rules(directory=rules_dir, rule_name=rules)
 
-    try:
-        rules = PromptingRules.from_toml(filepath=os.path.join(rules_dir, rules))
-    except Exception as error:
-        log(message=f"error (rules loading): {error}", message_type="error")
-
-    # compute response
-    response = WRITER.optimize_prompt(
+    response = writer.optimize_prompt(
         prompt=prompt,
         goal=project,
         creative_mode=True,
-        rules=rules,
+        rules=rule_set,
         temperature=temperature,
         seed=seed if seed >= 0 else None,
     )
-    output = ""
+
+    buffer = ""
     for chunk in response:
-        output += chunk
-        yield output
+        buffer += chunk
+        yield buffer
+
+
+def _load_writer_model(writer: LLM, model_dir: str, model_name: str) -> None:
+    model_path = Path(model_dir) / model_name
+    try:
+        writer.load_model(filepath=str(model_path))
+    except Exception as error:  # pragma: no cover - surfaced to the UI
+        log(message=f"error (llm loading): {error}", message_type="error")
+
+
+def _load_prompting_rules(directory: str, rule_name: str) -> PromptingRules:
+    filepath = Path(directory) / rule_name
+    try:
+        return PromptingRules.from_toml(filepath=str(filepath))
+    except Exception as error:  # pragma: no cover - surfaced to the UI
+        log(message=f"error (rules loading): {error}", message_type="error")
 
 
 def generate_image(
-        prompt: str,
-        diffuser: str,
-        diffuser_dir: str,
-        negative_prompt: Optional[str] = None,
-        steps: int = 25,
-        guidance: float = 7.0,
-        preview_frequency: int = 0,
-        preview_method: str = "fast",
-        aspect: str = "square",
-        seed: Optional[int] = -1,
-        progressbar: gr.Progress = gr.Progress()
-) -> Image:
-    """Generates the image corresponding to the provided prompt."""
-    # set preview frequency
-    try:
-        preview_frequency = int(preview_frequency)
-    except (TypeError, ValueError):
-        preview_frequency = 0
-    preview_frequency = max(0, preview_frequency)
-    preview_method = (preview_method or "fast").lower()
-    if preview_method not in {"fast", "medium", "full"}:
-        log(message=f"unsupported preview method '{preview_method}', defaulting to 'fast'", message_type="warning")
-        preview_method = "fast"
+    prompt: str,
+    diffuser: str,
+    diffuser_dir: str,
+    negative_prompt: Optional[str] = None,
+    steps: int = 25,
+    guidance: float = 7.0,
+    preview_frequency: int = 0,
+    preview_method: str = "fast",
+    aspect: str = "square",
+    seed: Optional[int] = -1,
+    progressbar: Optional[gr.Progress] = None,
+) -> Iterator[Image.Image]:
+    """Generate an image (and optional previews) using the configured diffusion pipeline."""
+    artist = MODELS.require_artist()
+
+    preview_frequency = _normalise_preview_frequency(preview_frequency)
+    preview_method = _normalise_preview_method(preview_method)
+    seed_value = seed if seed is not None and seed >= 0 else None
 
     log(message="loading diffuser", progress=0.25, progressbar=progressbar)
+    _load_diffuser_model(artist=artist, model_dir=diffuser_dir, model_name=diffuser)
+    log(message="generating image", progress=0.75, progressbar=progressbar)
+
     try:
-        ARTIST.load_model(filepath=os.path.join(diffuser_dir, diffuser))
-    except Exception as error:
+        if preview_frequency > 0:
+            yield from _generate_image_with_previews(
+                artist=artist,
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                steps=steps,
+                guidance=guidance,
+                aspect=aspect,
+                seed=seed_value,
+                preview_frequency=preview_frequency,
+                preview_method=preview_method,
+                progressbar=progressbar,
+            )
+        else:
+            final_image = artist.imagine(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                steps=steps,
+                guidance=guidance,
+                aspect=aspect,
+                seed=seed_value,
+                preview_method=preview_method,
+            )
+            log(message="done", progress=1.0, progressbar=progressbar)
+            yield final_image
+    except Exception as error:  # pragma: no cover - surfaced to the UI
+        log(
+            message=f"error (image generation): {error}",
+            message_type="error",
+            progress=1.0,
+            progressbar=progressbar,
+        )
+
+
+def _load_diffuser_model(artist: Diffuser, model_dir: str, model_name: str) -> None:
+    model_path = Path(model_dir) / model_name
+    try:
+        artist.load_model(filepath=str(model_path))
+    except Exception as error:  # pragma: no cover - surfaced to the UI
         log(message=f"error (diffuser loading): {error}", message_type="error")
 
-    log(message="generating image", progress=0.75, progressbar=progressbar)
-    previews_enabled = preview_frequency > 0
-    preview_queue: Queue = Queue()
+
+def _generate_image_with_previews(
+    artist: Diffuser,
+    prompt: str,
+    negative_prompt: Optional[str],
+    steps: int,
+    guidance: float,
+    aspect: str,
+    seed: Optional[int],
+    preview_frequency: int,
+    preview_method: str,
+    progressbar: Optional[gr.Progress],
+) -> Iterator[Image.Image]:
+    """Stream intermediate previews while the diffusion pipeline runs."""
+    queue: Queue = Queue()
     worker_exception: Optional[Exception] = None
 
     def handle_preview(image: Image.Image, step: int) -> None:
-        preview_queue.put(("preview", image, step))
+        queue.put(("preview", image, step))
 
     def run_pipeline() -> None:
         nonlocal worker_exception
         try:
-            final_image = ARTIST.imagine(
+            final_image = artist.imagine(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 steps=steps,
                 guidance=guidance,
                 aspect=aspect,
                 seed=seed,
-                preview_frequency=preview_frequency if previews_enabled else None,
-                preview_method=preview_method if previews_enabled else "fast",
-                preview_callback=handle_preview if previews_enabled else None,
+                preview_frequency=preview_frequency,
+                preview_method=preview_method,
+                preview_callback=handle_preview,
             )
-            preview_queue.put(("final", final_image, steps))
-        except Exception as error:
+            queue.put(("final", final_image, steps))
+        except Exception as error:  # pragma: no cover - surfaced to the UI
             worker_exception = error
-            preview_queue.put(("error", error, -1))
+            queue.put(("error", error, -1))
         finally:
-            preview_queue.put(("done", None, -1))
+            queue.put(("done", None, -1))
 
-    if previews_enabled:
-        Thread(target=run_pipeline, daemon=True).start()
-        while True:
-            kind, payload, _step = preview_queue.get()
-            if kind == "preview":
-                yield payload
-            elif kind == "final":
-                yield payload
-            elif kind == "error":
+    Thread(target=run_pipeline, daemon=True).start()
+
+    while True:
+        kind, payload, _step = queue.get()
+        if kind == "preview":
+            yield payload
+        elif kind == "final":
+            yield payload
+        elif kind == "error":
+            if worker_exception is not None:
                 log(
                     message=f"error (image generation): {worker_exception}",
                     message_type="error",
                     progress=1.0,
-                    progressbar=progressbar
+                    progressbar=progressbar,
                 )
-            elif kind == "done":
-                break
-        log(message="done", progress=1.0, progressbar=progressbar)
-    else:
-        try:
-            final_image = ARTIST.imagine(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                steps=steps,
-                guidance=guidance,
-                aspect=aspect,
-                seed=seed if seed >= 0 else None,
-                preview_method=preview_method,
-            )
-        except Exception as error:
-            log(message=f"error (image generation): {error}", message_type="error", progress=1.0,
-                progressbar=progressbar)
-        else:
-            log(message="done", progress=1.0, progressbar=progressbar)
-            yield final_image
+        elif kind == "done":
+            break
+
+    log(message="done", progress=1.0, progressbar=progressbar)
+
+
+def _normalise_preview_frequency(value: int) -> int:
+    try:
+        frequency = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, frequency)
+
+
+def _normalise_preview_method(method: Optional[str]) -> str:
+    if not method:
+        return "fast"
+    method = method.lower()
+    if method not in {"fast", "medium", "full"}:
+        log(message=f"unsupported preview method '{method}', defaulting to 'fast'", message_type="warning")
+        return "fast"
+    return method
