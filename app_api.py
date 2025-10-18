@@ -137,6 +137,7 @@ def generate_image(
         steps: int = 25,
         guidance: float = 7.0,
         preview_frequency: int = 0,
+        preview_method: str = "fast",
         aspect: str = "square",
         seed: Optional[int] = -1,
         progressbar: gr.Progress = gr.Progress()
@@ -148,6 +149,10 @@ def generate_image(
     except (TypeError, ValueError):
         preview_frequency = 0
     preview_frequency = max(0, preview_frequency)
+    preview_method = (preview_method or "fast").lower()
+    if preview_method not in {"fast", "medium", "full"}:
+        log(message=f"unsupported preview method '{preview_method}', defaulting to 'fast'", message_type="warning")
+        preview_method = "fast"
 
     log(message="loading diffuser", progress=0.25, progressbar=progressbar)
     try:
@@ -174,6 +179,7 @@ def generate_image(
                 aspect=aspect,
                 seed=seed,
                 preview_frequency=preview_frequency if previews_enabled else None,
+                preview_method=preview_method if previews_enabled else "fast",
                 preview_callback=handle_preview if previews_enabled else None,
             )
             preview_queue.put(("final", final_image, steps))
@@ -210,6 +216,7 @@ def generate_image(
                 guidance=guidance,
                 aspect=aspect,
                 seed=seed if seed >= 0 else None,
+                preview_method=preview_method,
             )
         except Exception as error:
             log(message=f"error (image generation): {error}", message_type="error", progress=1.0,

@@ -45,47 +45,44 @@ def build_ui(
     available_optimizers = get_model_list(directory=rules_directory, model_type="optimizer")
 
     with gr.Blocks() as app:
-        gr.Markdown(f"# {doc.get('title')}\n\n{doc.get('description')}")
+        gr.Markdown(f"# {doc.get('title')}")
+        if doc.get("tagline"):
+            gr.Markdown(doc.get("tagline"))
 
-        gr.Markdown(f"## {doc.get('project_title')}\n\n{doc.get('project_description')}")
-        project = gr.Text(
-            label=None,
-            interactive=True,
-            container=False,
-            placeholder=doc.get("project_placeholder"),
-        )
-
-        gr.Markdown(f"## {doc.get('generation_title')}\n\n{doc.get('generation_description')}")
         with gr.Row(equal_height=False):
-            with gr.Column(scale=3, variant="default"):
+            with gr.Column(scale=4, min_width=640):
                 image = gr.Image(
                     label=doc.get("image_label"),
                     format="png",
                     type="pil",
                     container=False,
                 )
-                with gr.Row(equal_height=True):
-                    prompt = gr.Text(
-                        label=doc.get("diffuser_prompt_label"),
-                        placeholder=doc.get("diffuser_prompt_placeholder"),
-                        interactive=True,
-                        container=False,
-                        lines=5,
-                        scale=3
+                prompt = gr.Textbox(
+                    label=doc.get("prompt_label"),
+                    placeholder=doc.get("prompt_placeholder"),
+                    info=doc.get("prompt_info"),
+                    interactive=True,
+                    lines=8,
+                )
+                negative_prompt = gr.Textbox(
+                    label=doc.get("negative_prompt_label"),
+                    placeholder=doc.get("negative_prompt_placeholder"),
+                    info=doc.get("negative_prompt_info"),
+                    interactive=True,
+                    lines=3,
+                )
+                with gr.Row():
+                    improve_btn = gr.Button(
+                        value=doc.get("improve_button"),
+                        variant="secondary",
                     )
-                    with gr.Column(scale=1):
-                        improve_btn = gr.Button(
-                            value=doc.get("improve_button"),
-                            variant="secondary",
-                            scale=1,
-                        )
-                        generate_btn = gr.Button(
-                            value=doc.get("generate_button"),
-                            variant="primary",
-                            scale=1,
-                        )
-            with gr.Column(scale=2, variant="panel"):
-                with gr.Tab("LLM"):
+                    generate_btn = gr.Button(
+                        value=doc.get("generate_button"),
+                        variant="primary",
+                    )
+            with gr.Column(scale=2, min_width=320, variant="panel"):
+                gr.Markdown(f"### {doc.get('control_panel_title')}")
+                with gr.Accordion(doc.get("optimizer_section_title"), open=True):
                     llm = gr.Dropdown(
                         label=doc.get("parameter_llm_label"),
                         info=doc.get("parameter_llm_description"),
@@ -116,21 +113,13 @@ def build_ui(
                         maximum=1000000000,
                         step=1,
                     )
-                with gr.Tab("Diffuser"):
+                with gr.Accordion(doc.get("diffuser_section_title"), open=True):
                     diffuser = gr.Dropdown(
                         label=doc.get("parameter_diffuser_label"),
                         info=doc.get("parameter_diffuser_description"),
                         choices=available_diffusers,
                         value=available_diffusers[0],
                         multiselect=False
-                    )
-                    negative_prompt = gr.TextArea(
-                        label=doc.get("parameter_negative_prompt_label"),
-                        info=doc.get("parameter_negative_prompt_description"),
-                        interactive=True,
-                        container=True,
-                        lines=1,
-                        max_lines=3
                     )
                     steps = gr.Slider(
                         label=doc.get("parameter_steps_label"),
@@ -140,14 +129,6 @@ def build_ui(
                         value=25,
                         step=1
                     )
-                    preview_frequency = gr.Slider(
-                        label="Preview every N steps",
-                        info="Set to 0 to disable intermediate preview images.",
-                        minimum=0,
-                        maximum=50,
-                        value=0,
-                        step=1,
-                    )
                     guidance = gr.Slider(
                         label=doc.get("parameter_guidance_label"),
                         info=doc.get("parameter_guidance_description"),
@@ -155,12 +136,6 @@ def build_ui(
                         maximum=15,
                         value=7,
                         step=0.5
-                    )
-                    aspect = gr.Dropdown(
-                        label=doc.get("parameter_aspect_label"),
-                        info=doc.get("parameter_aspect_description"),
-                        choices=get_supported_image_ratios(),
-                        value=get_supported_image_ratios()[0],
                     )
                     diffuser_seed = gr.Number(
                         label=doc.get("parameter_seed_label"),
@@ -170,9 +145,31 @@ def build_ui(
                         maximum=1000000000,
                         step=1,
                     )
+                with gr.Accordion(doc.get("app_section_title"), open=True):
+                    preview_frequency = gr.Slider(
+                        label=doc.get("preview_frequency_label"),
+                        info=doc.get("preview_frequency_info"),
+                        minimum=0,
+                        maximum=50,
+                        value=doc.get("preview_frequency_default", 0),
+                        step=1,
+                    )
+                    preview_method = gr.Radio(
+                        label=doc.get("preview_method_label"),
+                        info=doc.get("preview_method_info"),
+                        choices=["fast", "medium", "full"],
+                        value="fast",
+                    )
+                    aspect = gr.Dropdown(
+                        label=doc.get("parameter_aspect_label"),
+                        info=doc.get("parameter_aspect_description"),
+                        choices=get_supported_image_ratios(),
+                        value=get_supported_image_ratios()[0],
+                    )
         diffuser_dir = gr.State(diffuser_directory)
         llm_dir = gr.State(llm_directory)
         rules_dir = gr.State(rules_directory)
+        project = gr.State("")
 
         # UI logic
         improve_btn.click(
@@ -182,8 +179,8 @@ def build_ui(
         )
         generate_btn.click(
             fn=generate_image,
-            inputs=[prompt, diffuser, diffuser_dir, negative_prompt, steps, guidance, preview_frequency, aspect,
-                    diffuser_seed],
+            inputs=[prompt, diffuser, diffuser_dir, negative_prompt, steps, guidance, preview_frequency,
+                    preview_method, aspect, diffuser_seed],
             outputs=[image]
         )
     return app

@@ -1,32 +1,23 @@
 title = "Dibujito"
-description = """
-A simple web app to turn your creative ideas into images.
-Dibujito combines the power of Large Language Models (LLMs) with text-to-image Diffusion models to help you craft beautiful images from your imagination.
-A LLM analyzes your project and prompt to create an optimized version tailored to the chosen diffusion model, enhancing the generated image's aesthetics.
-No need for prompt engineering: just describe what you want, and the app will handle the rest!
-"""
-
-# Project section
-project_title = "Project Description"
-project_description = """
-Tell the AI what you wish to achieve with the generated images.
-Be specific and thorough: the more information the AI has, the better it can optimize your prompts.
-"""
-project_placeholder = "Describe your project here."
-
-# Generation section
-generation_title = "Image Generation"
-generation_description = """
-Describe what you want to see in the generated images in the text box.
-Be detailed in your image description.
-Write naturally.
-No need to optimize your prompt; the app will do it for you.
-"""
-prompt_label = "Prompt (diffuser)"
-prompt_placeholder = "Prompt sent to the diffuser."
-image_label = "Image"
+tagline = "Describe your idea, tweak the controls and watch the image evolve."
+image_label = "Image preview"
 improve_button = "Improve"
 generate_button = "Generate"
+prompt_label = "Positive prompt"
+prompt_placeholder = "Describe the image you want to generate."
+prompt_info = "This description is optionally optimized before it reaches the diffuser."
+negative_prompt_label = "Negative prompt"
+negative_prompt_placeholder = "List elements to avoid (comma separated)."
+negative_prompt_info = "Leave blank unless you want to steer the model away from specific details."
+control_panel_title = "Controls"
+optimizer_section_title = "Prompt optimizer"
+diffuser_section_title = "Diffusion model"
+app_section_title = "Preview & output"
+preview_frequency_label = "Preview every N steps"
+preview_frequency_info = "Set to 0 to skip intermediate previews."
+preview_frequency_default = 0
+preview_method_label = "Preview method"
+preview_method_info = 'Select how intermediate previews are decoded. "fast" is the quickest option.'
 
 # llm parameters
 parameter_llm_label = "LLM"

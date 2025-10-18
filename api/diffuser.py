@@ -96,6 +96,7 @@ class Diffuser:
             guidance: float = 7,
             seed: int = None,
             preview_frequency: Optional[int] = None,
+            preview_method: str = "fast",
             preview_callback: Optional[Callable[[Image.Image, int], None]] = None,
     ) -> Image:
         """Generates an image corresponding to the provided prompt."""
@@ -112,6 +113,16 @@ class Diffuser:
             preview_frequency = 0
         if preview_callback is None:
             preview_frequency = 0
+        preview_method = (preview_method or "fast").lower()
+        preview_decoders = {
+            "fast": self._latents_to_image_fast,
+            "medium": self.latents_to_image_medium,
+            "full": self._latents_to_image_full,
+        }
+        if preview_method not in preview_decoders:
+            logging.warning("unsupported preview method '%s', defaulting to 'fast'", preview_method)
+            preview_method = "fast"
+        decode_preview = preview_decoders[preview_method]
 
         # define callback
         def _callback(pipeline, step: int, t: torch.Tensor, kwargs: dict):
@@ -119,7 +130,7 @@ class Diffuser:
                 print(f"generating preview at step {step}")
                 latents = kwargs["latents"]
                 try:
-                    image = self._latents_to_image_fast(latents)
+                    image = decode_preview(latents)
                     preview_callback(image, step)
                 except Exception as error:
                     logging.error(f"error while decoding preview (step {step}): {error}")
