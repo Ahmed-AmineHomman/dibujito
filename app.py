@@ -140,6 +140,14 @@ def build_ui(
                         value=25,
                         step=1
                     )
+                    preview_frequency = gr.Slider(
+                        label="Preview every N steps",
+                        info="Set to 0 to disable intermediate preview images.",
+                        minimum=0,
+                        maximum=50,
+                        value=0,
+                        step=1,
+                    )
                     guidance = gr.Slider(
                         label=doc.get("parameter_guidance_label"),
                         info=doc.get("parameter_guidance_description"),
@@ -174,7 +182,8 @@ def build_ui(
         )
         generate_btn.click(
             fn=generate_image,
-            inputs=[prompt, diffuser, diffuser_dir, negative_prompt, steps, guidance, aspect, diffuser_seed],
+            inputs=[prompt, diffuser, diffuser_dir, negative_prompt, steps, guidance, preview_frequency, aspect,
+                    diffuser_seed],
             outputs=[image]
         )
     return app

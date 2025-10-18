@@ -1,5 +1,7 @@
 import logging
 import os
+from queue import Queue
+from threading import Thread
 from typing import Optional, List
 
 import gradio as gr
@@ -134,31 +136,84 @@ def generate_image(
         negative_prompt: Optional[str] = None,
         steps: int = 25,
         guidance: float = 7.0,
+        preview_frequency: int = 0,
         aspect: str = "square",
         seed: Optional[int] = -1,
         progressbar: gr.Progress = gr.Progress()
 ) -> Image:
     """Generates the image corresponding to the provided prompt."""
-    # initialize outputs
-    image: Image.Image = Image.new(mode="RGB", size=(512, 512), color=(0, 0, 0))
+    # set preview frequency
+    try:
+        preview_frequency = int(preview_frequency)
+    except (TypeError, ValueError):
+        preview_frequency = 0
+    preview_frequency = max(0, preview_frequency)
 
-    log(message="loading diffuser", progress=0.65, progressbar=progressbar)
+    log(message="loading diffuser", progress=0.25, progressbar=progressbar)
     try:
         ARTIST.load_model(filepath=os.path.join(diffuser_dir, diffuser))
     except Exception as error:
         log(message=f"error (diffuser loading): {error}", message_type="error")
 
-    log(message="generating image", progress=0.7, progressbar=progressbar)
-    try:
-        image = ARTIST.imagine(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            steps=steps,
-            guidance=guidance,
-            aspect=aspect,
-            seed=seed if seed >= 0 else None,
-        )
-    except Exception as error:
-        log(message=f"Error (image gen): {error}", message_type="error")
+    log(message="generating image", progress=0.75, progressbar=progressbar)
+    previews_enabled = preview_frequency > 0
+    preview_queue: Queue = Queue()
+    worker_exception: Optional[Exception] = None
 
-    return image
+    def handle_preview(image: Image.Image, step: int) -> None:
+        preview_queue.put(("preview", image, step))
+
+    def run_pipeline() -> None:
+        nonlocal worker_exception
+        try:
+            final_image = ARTIST.imagine(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                steps=steps,
+                guidance=guidance,
+                aspect=aspect,
+                seed=seed,
+                preview_frequency=preview_frequency if previews_enabled else None,
+                preview_callback=handle_preview if previews_enabled else None,
+            )
+            preview_queue.put(("final", final_image, steps))
+        except Exception as error:
+            worker_exception = error
+            preview_queue.put(("error", error, -1))
+        finally:
+            preview_queue.put(("done", None, -1))
+
+    if previews_enabled:
+        Thread(target=run_pipeline, daemon=True).start()
+        while True:
+            kind, payload, _step = preview_queue.get()
+            if kind == "preview":
+                yield payload
+            elif kind == "final":
+                yield payload
+            elif kind == "error":
+                log(
+                    message=f"error (image generation): {worker_exception}",
+                    message_type="error",
+                    progress=1.0,
+                    progressbar=progressbar
+                )
+            elif kind == "done":
+                break
+        log(message="done", progress=1.0, progressbar=progressbar)
+    else:
+        try:
+            final_image = ARTIST.imagine(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                steps=steps,
+                guidance=guidance,
+                aspect=aspect,
+                seed=seed if seed >= 0 else None,
+            )
+        except Exception as error:
+            log(message=f"error (image generation): {error}", message_type="error", progress=1.0,
+                progressbar=progressbar)
+        else:
+            log(message="done", progress=1.0, progressbar=progressbar)
+            yield final_image
