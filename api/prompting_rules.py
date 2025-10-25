@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List
 
 from toml import dump, load
@@ -41,3 +42,11 @@ class PromptingRules:
         with open(filepath, "r", encoding="utf-8") as handle:
             data = load(handle)
         return cls.from_dict(data)
+
+
+def get_supported_rules() -> list[str]:
+    """Expose the available prompting rule presets shipped with the app."""
+    rules_dir = Path(__file__).resolve().parent.parent / "data" / "prompting_rules"
+    if not rules_dir.exists():
+        return []
+    return sorted(entry.name for entry in rules_dir.glob("*.toml") if entry.is_file())

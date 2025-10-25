@@ -5,7 +5,7 @@ from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from pathlib import Path
 from tomllib import load as load_toml
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Optional
 
 import gradio as gr
 from click import MissingParameter
@@ -302,70 +302,45 @@ def _assistant_chat_response(
         seed: Optional[float],
         optimizer_name: Optional[str],
         rules_dir: str,
-) -> Iterator[tuple[list[dict[str, str]], str]]:
+) -> tuple[list[dict[str, str]], str]:
     """Generate a conversational response containing an optimised prompt suggestion."""
-    # consistency checks
     if not message or not message.strip():
         gr.Warning("Received empty message for assistant chat; no action taken.")
-        yield history or [], ""
-        return
+        return history or [], ""
     if not llm_name:
         gr.Error("Select an LLM before requesting prompt help.")
-        yield history or [], ""
-        return
+        return history or [], ""
     if not optimizer_name:
         gr.Error("Select a prompt optimizer to continue.")
-        yield history or [], ""
-        return
+        return history or [], ""
 
-    # preparing inference parameters
     temperature_value = float(temperature) if temperature is not None else 0.5
-    seed_value: Optional[int] = None
-    if seed is not None:
-        try:
-            seed_candidate = int(seed)
-        except (TypeError, ValueError):
-            seed_candidate = -1
-        if seed_candidate >= 0:
-            seed_value = seed_candidate
 
-    # append user message to conversation history
     conversation: list[dict[str, str]] = list(history or [])
     conversation.append({"role": "user", "content": message})
-    yield conversation, ""
 
-    # create snapshot for the model before appending the streaming placeholder
-    conversation_for_llm = list(conversation)
-
-    # stream assistant response
-    conversation.append({"role": "assistant", "content": ""})
     try:
-        stream = optimize_prompt(
-            conversation=conversation_for_llm,
+        response = optimize_prompt(
+            conversation=conversation,
             llm=llm_name,
             llm_dir=llm_dir,
             rules=optimizer_name,
             rules_dir=rules_dir,
             temperature=temperature_value,
-            seed=seed_value,
+            seed=seed,
             creative_mode=True,
         )
-
-        produced_content = False
-        for chunk in stream:
-            produced_content = True
-            conversation[-1]["content"] += chunk
-            yield conversation, ""
-
-        if not produced_content:
-            gr.Error("Something went wrong during prompt optimization; no content produced.")
-            conversation.pop()
-            yield conversation, ""
-    except Exception as error:
+    except Exception:
         logging.exception("assistant prompt optimization failed")
         gr.Error("Something went wrong during prompt optimization; no content produced.")
-        conversation.pop()
-        yield conversation, ""
+        return conversation, ""
+
+    if response:
+        conversation.append({"role": "assistant", "content": response})
+    else:
+        gr.Warning("No content produced by the assistant.")
+
+    return conversation, ""
 
 
 def _default_choice(options: list[str]) -> Optional[str]:
