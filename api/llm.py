@@ -128,37 +128,9 @@ class LLM:
             messages: Sequence[MessageLike],
             temperature: float = 0.2,
             seed: Optional[int] = None,
-    ) -> str:
-        """Return a single chat completion produced by the loaded model."""
-        if not self.ready or self._llm is None:
-            message = "No model loaded. Call `load_model` before using `respond`."
-            logger.error(message)
-            raise RuntimeError(message)
-
-        params = self._build_completion_params(
-            messages=messages,
-            temperature=temperature,
-            seed=seed,
-            stream=False,
-        )
-        logger.debug("Invoking llama.cpp with %d message(s).", len(params["messages"]))
-        result = self._llm.create_chat_completion(**params)
-        choices = result.get("choices", [])
-        if not choices:
-            logger.warning("llama.cpp returned an empty response.")
-            return ""
-
-        message = choices[0].get("message", {})
-        content = message.get("content", "")
-        return content or ""
-
-    def stream_response(
-            self,
-            messages: Sequence[MessageLike],
-            temperature: float = 0.2,
-            seed: Optional[int] = None,
-    ) -> Iterator[str]:
-        """Yield chat completion tokens produced by the loaded model.
+            stream: bool = False,
+    ) -> Union[str, Iterator[str]]:
+        """Return a chat completion produced by the loaded model.
 
         Parameters
         ----------
@@ -168,14 +140,17 @@ class LLM:
             Sampling temperature for the completion.
         seed
             Pseudo-random seed used when supported by llama.cpp.
+        stream
+            When True, yield completion fragments as they become available.
 
-        Yields
-        ------
-        str
-            The next content fragment returned by llama.cpp.
+        Returns
+        -------
+        Union[str, Iterator[str]]
+            Full assistant reply when ``stream`` is False, otherwise an iterator
+            yielding completion fragments.
         """
         if not self.ready or self._llm is None:
-            message = "No model loaded. Call `load_model` before using `stream_response`."
+            message = "No model loaded. Call `load_model` before using `respond`."
             logger.error(message)
             raise RuntimeError(message)
 
@@ -183,12 +158,28 @@ class LLM:
             messages=messages,
             temperature=temperature,
             seed=seed,
-            stream=True,
+            stream=stream,
         )
-        for chunk in self._llm.create_chat_completion(**params):
-            token = self._extract_stream_content(chunk)
-            if token:
-                yield token
+        logger.debug("Invoking llama.cpp with %d message(s).", len(params["messages"]))
+
+        if stream:
+            def _token_iterator() -> Iterator[str]:
+                for chunk in self._llm.create_chat_completion(**params):
+                    token = self._extract_stream_content(chunk)
+                    if token:
+                        yield token
+
+            return _token_iterator()
+
+        result = self._llm.create_chat_completion(**params)
+        choices = result.get("choices", [])
+        if not choices:
+            logger.warning("llama.cpp returned an empty response.")
+            return ""
+
+        message = choices[0].get("message", {})
+        content = message.get("content", "")
+        return content or ""
 
     @staticmethod
     def _prepare_messages(

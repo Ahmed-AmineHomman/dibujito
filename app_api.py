@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from queue import Queue
+from queue import SimpleQueue
 from threading import Thread
-from typing import Iterator, Optional
+from typing import Optional
 
 import gradio as gr
 from PIL import Image
@@ -195,11 +196,22 @@ def generate_response(
     # perform inference
     assistant_reply = ""
     try:
-        for fragment in writer.stream_response(
-                messages=llm_messages,
-                temperature=float(temperature_value),
-                seed=seed_value,
-        ):
+        response_stream = writer.respond(
+            messages=llm_messages,
+            temperature=float(temperature_value),
+            seed=seed_value,
+            stream=True,
+        )
+        if isinstance(response_stream, str):
+            assistant_reply = response_stream.strip()
+            assistant_message["content"] = assistant_reply
+            if assistant_reply:
+                yield conversation, ""
+            else:
+                gr.Warning("No content produced by the assistant.")
+            return
+
+        for fragment in response_stream:
             if not fragment:
                 continue
             assistant_reply += fragment
@@ -234,6 +246,9 @@ def generate_image(
         seed: Optional[int] = -1,
 ) -> Iterator[Image.Image]:
     """Generate an image (and optional previews) using the configured diffusion pipeline."""
+    queue: SimpleQueue[object] = SimpleQueue()
+    sentinel = object()
+
     # load diffuser model
     try:
         artist = MODELS.require_artist()
@@ -246,26 +261,51 @@ def generate_image(
     # normalize inference parameters
     preview_frequency = _normalise_preview_frequency(preview_frequency)
     preview_method = _normalise_preview_method(preview_method)
-    seed_value = _normalise_seed(seed)
+    seed = _normalise_seed(seed)
+
+    # define pipeline runner
+    def handle_preview(image: Image.Image, step: int) -> None:
+        queue.put(image)
+
+    def run_pipeline() -> None:
+        try:
+            final_image = artist.imagine(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                steps=steps,
+                guidance=guidance,
+                aspect=aspect,
+                seed=seed,
+                preview_frequency=preview_frequency,
+                preview_method=preview_method,
+                preview_callback=handle_preview,
+            )
+            queue.put(final_image)
+        except Exception as error:  # pragma: no cover - surfaced to the UI
+            queue.put(error)
+        finally:
+            queue.put(sentinel)
 
     # perform inference
     try:
-        yield from _generate_image_with_previews(
-            artist=artist,
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            steps=steps,
-            guidance=guidance,
-            aspect=aspect,
-            seed=seed_value,
-            preview_frequency=preview_frequency,
-            preview_method=preview_method,
-        )
+        Thread(target=run_pipeline, daemon=True).start()
+        while True:
+            item = queue.get()
+            if item is sentinel:
+                break
+            if isinstance(item, Exception):
+                log(
+                    message=f"error (image generation): {item}",
+                    message_type="error",
+                )
+                continue
+            yield item
     except Exception as error:  # pragma: no cover - surfaced to the UI
         log(
             message=f"error (image generation): {error}",
             message_type="error",
         )
+    log(message="done")
 
 
 def _generate_image_with_previews(
@@ -280,51 +320,6 @@ def _generate_image_with_previews(
         preview_method: str,
 ) -> Iterator[Image.Image]:
     """Stream intermediate previews while the diffusion pipeline runs."""
-    queue: Queue = Queue()
-    worker_exception: Optional[Exception] = None
-
-    def handle_preview(image: Image.Image, step: int) -> None:
-        queue.put(("preview", image, step))
-
-    def run_pipeline() -> None:
-        nonlocal worker_exception
-        try:
-            final_image = artist.imagine(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                steps=steps,
-                guidance=guidance,
-                aspect=aspect,
-                seed=seed,
-                preview_frequency=preview_frequency,
-                preview_method=preview_method,
-                preview_callback=handle_preview,
-            )
-            queue.put(("final", final_image, steps))
-        except Exception as error:  # pragma: no cover - surfaced to the UI
-            worker_exception = error
-            queue.put(("error", error, -1))
-        finally:
-            queue.put(("done", None, -1))
-
-    Thread(target=run_pipeline, daemon=True).start()
-
-    while True:
-        kind, payload, _step = queue.get()
-        if kind == "preview":
-            yield payload
-        elif kind == "final":
-            yield payload
-        elif kind == "error":
-            if worker_exception is not None:
-                log(
-                    message=f"error (image generation): {worker_exception}",
-                    message_type="error",
-                )
-        elif kind == "done":
-            break
-
-    log(message="done")
 
 
 def _load_writer_model(writer: LLM, model_dir: str, model_name: str) -> None:
