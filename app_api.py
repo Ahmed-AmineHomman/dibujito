@@ -116,8 +116,8 @@ def generate_response(
         optimizer_name: Optional[str],
         rules_dir: str,
         creative_mode: bool = True,
-) -> tuple[list[dict[str, str]], str]:
-    """Return the updated chat history after generating an assistant reply.
+) -> Iterator[tuple[list[dict[str, str]], str]]:
+    """Stream the updated chat history while the assistant reply is generated.
 
     Parameters
     ----------
@@ -142,18 +142,23 @@ def generate_response(
 
     Returns
     -------
-    tuple[list[dict[str, str]], str]
-        Updated chat history and an empty string to clear the textbox.
+    Iterator[tuple[list[dict[str, str]], str]]
+        Updated chat history snapshots and an empty string to clear the textbox.
     """
+    conversation: list[dict[str, str]] = list(history or [])
+
     if not message or not message.strip():
         gr.Warning("Received empty message for assistant chat; no action taken.")
-        return history or [], ""
+        yield conversation, ""
+        return
     if not llm_name:
         gr.Error("Select an LLM before requesting prompt help.")
-        return history or [], ""
+        yield conversation, ""
+        return
     if not optimizer_name:
         gr.Error("Select a prompt optimizer to continue.")
-        return history or [], ""
+        yield conversation, ""
+        return
 
     # load model and rules
     try:
@@ -162,7 +167,8 @@ def generate_response(
     except Exception:
         logger.exception("LLM model loading failed")
         gr.Error("Failed to load the selected LLM model; cannot proceed.")
-        return history or [], ""
+        yield conversation, ""
+        return
     try:
         rule_set = _load_prompting_rules(directory=rules_dir, rule_name=optimizer_name)
         writer.configure_prompting(
@@ -172,31 +178,43 @@ def generate_response(
     except Exception:
         logger.exception("Prompting rules loading failed")
         gr.Error("Failed to load the selected prompting rules; cannot proceed.")
-        return history or [], ""
+        yield conversation, ""
+        return
 
     # normalize inference parameters
     temperature_value = _normalize_temperature(temperature)
     seed_value = _normalise_seed(seed)
 
-    # update conversation with user message
-    conversation: list[dict[str, str]] = list(history or [])
+    # update conversation for UI and inference
     conversation.append({"role": "user", "content": message})
+    llm_messages = list(conversation)
+    assistant_message: dict[str, str] = {"role": "assistant", "content": ""}
+    conversation.append(assistant_message)
+    yield conversation, ""
 
     # perform inference
+    assistant_reply = ""
     try:
-        response = writer.respond(
-            messages=conversation,
-            temperature=float(temperature_value),
-            seed=seed_value,
-        ).strip()
+        for fragment in writer.stream_response(
+                messages=llm_messages,
+                temperature=float(temperature_value),
+                seed=seed_value,
+        ):
+            if not fragment:
+                continue
+            assistant_reply += fragment
+            assistant_message["content"] = assistant_reply
+            yield conversation, ""
     except Exception:
         logger.exception("assistant prompt optimization failed")
         gr.Error("Something went wrong during prompt optimization; no content produced.")
-        return conversation, ""
+        return
 
-    # update conversation with assistant response
-    if response:
-        conversation.append({"role": "assistant", "content": response})
+    # finalise response
+    assistant_reply = assistant_reply.strip()
+    assistant_message["content"] = assistant_reply
+    if assistant_reply:
+        yield conversation, ""
     else:
         gr.Warning("No content produced by the assistant.")
 

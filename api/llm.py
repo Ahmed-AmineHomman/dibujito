@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union, TYPE_CHECKING
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Union, TYPE_CHECKING
 
 from llama_cpp import Llama
 
@@ -135,22 +135,13 @@ class LLM:
             logger.error(message)
             raise RuntimeError(message)
 
-        chat_messages = self._prepare_messages(messages)
-        system_prompt = self.system_instructions.strip()
-        if system_prompt:
-            chat_messages.insert(0, {"role": "system", "content": system_prompt})
-
-        params: Dict[str, Any] = {
-            "messages": chat_messages,
-            "temperature": float(temperature),
-            "stream": False,
-        }
-
-        normalised_seed = self._normalise_seed(seed)
-        if normalised_seed is not None:
-            params["seed"] = normalised_seed
-
-        logger.debug("Invoking llama.cpp with %d message(s).", len(chat_messages))
+        params = self._build_completion_params(
+            messages=messages,
+            temperature=temperature,
+            seed=seed,
+            stream=False,
+        )
+        logger.debug("Invoking llama.cpp with %d message(s).", len(params["messages"]))
         result = self._llm.create_chat_completion(**params)
         choices = result.get("choices", [])
         if not choices:
@@ -160,6 +151,44 @@ class LLM:
         message = choices[0].get("message", {})
         content = message.get("content", "")
         return content or ""
+
+    def stream_response(
+            self,
+            messages: Sequence[MessageLike],
+            temperature: float = 0.2,
+            seed: Optional[int] = None,
+    ) -> Iterator[str]:
+        """Yield chat completion tokens produced by the loaded model.
+
+        Parameters
+        ----------
+        messages
+            Conversation history to condition the assistant on.
+        temperature
+            Sampling temperature for the completion.
+        seed
+            Pseudo-random seed used when supported by llama.cpp.
+
+        Yields
+        ------
+        str
+            The next content fragment returned by llama.cpp.
+        """
+        if not self.ready or self._llm is None:
+            message = "No model loaded. Call `load_model` before using `stream_response`."
+            logger.error(message)
+            raise RuntimeError(message)
+
+        params = self._build_completion_params(
+            messages=messages,
+            temperature=temperature,
+            seed=seed,
+            stream=True,
+        )
+        for chunk in self._llm.create_chat_completion(**params):
+            token = self._extract_stream_content(chunk)
+            if token:
+                yield token
 
     @staticmethod
     def _prepare_messages(
@@ -233,3 +262,48 @@ class LLM:
             logger.error(message)
             raise ValueError(message)
         return path
+
+    def _build_completion_params(
+            self,
+            messages: Sequence[MessageLike],
+            temperature: float,
+            seed: Optional[int],
+            stream: bool,
+    ) -> Dict[str, Any]:
+        chat_messages = self._prepare_messages(messages)
+        system_prompt = self.system_instructions.strip()
+        if system_prompt:
+            chat_messages.insert(0, {"role": "system", "content": system_prompt})
+
+        params: Dict[str, Any] = {
+            "messages": chat_messages,
+            "temperature": float(temperature),
+            "stream": stream,
+        }
+
+        normalised_seed = self._normalise_seed(seed)
+        if normalised_seed is not None:
+            params["seed"] = normalised_seed
+
+        return params
+
+    @staticmethod
+    def _extract_stream_content(chunk: Any) -> str:
+        if not isinstance(chunk, dict):
+            return ""
+        choices = chunk.get("choices")
+        if not choices:
+            return ""
+
+        choice = choices[0] or {}
+        if "delta" in choice:
+            delta = choice.get("delta") or {}
+            return str(delta.get("content") or "")
+        if "text" in choice:
+            return str(choice.get("text") or "")
+        if "content" in choice:
+            return str(choice.get("content") or "")
+        if "message" in choice:
+            message = choice.get("message") or {}
+            return str(message.get("content") or "")
+        return ""
