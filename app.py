@@ -334,11 +334,14 @@ def _assistant_chat_response(
     conversation.append({"role": "user", "content": message})
     yield conversation, ""
 
+    # create snapshot for the model before appending the streaming placeholder
+    conversation_for_llm = list(conversation)
+
     # stream assistant response
     conversation.append({"role": "assistant", "content": ""})
     try:
         stream = optimize_prompt(
-            description=message,
+            conversation=conversation_for_llm,
             llm=llm_name,
             llm_dir=llm_dir,
             rules=optimizer_name,
