@@ -5,13 +5,13 @@ from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from pathlib import Path
 from tomllib import load as load_toml
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
 
 import gradio as gr
 from click import MissingParameter
 
 from api import Diffuser, LLM, get_supported_image_ratios
-from app_api import generate_image, get_model_list, load_model
+from app_api import generate_image, get_model_list, load_model, optimize_prompt
 
 LANGUAGES = ("en",)
 DEFAULT_LANGUAGE = "en"
@@ -79,6 +79,8 @@ def build_ui(
             control_panel = _build_control_panel(doc, available_llms, available_diffusers, available_optimizers)
 
         diffuser_state = gr.State(diffuser_directory)
+        llm_state = gr.State(llm_directory)
+        rules_state = gr.State(rules_directory)
 
         image_inputs = [
             generation_panel.positive_prompt,
@@ -103,8 +105,17 @@ def build_ui(
             outputs=[generation_panel.image],
         )
         control_panel.chatbot_input.submit(
-            fn=_dummy_chat_response,
-            inputs=[control_panel.chatbot, control_panel.chatbot_input],
+            fn=_assistant_chat_response,
+            inputs=[
+                control_panel.chatbot,
+                control_panel.chatbot_input,
+                control_panel.llm,
+                llm_state,
+                control_panel.llm_temperature,
+                control_panel.llm_seed,
+                control_panel.optimizer,
+                rules_state,
+            ],
             outputs=[control_panel.chatbot, control_panel.chatbot_input],
         )
     return app
@@ -282,14 +293,76 @@ def _build_control_panel(
     )
 
 
-def _dummy_chat_response(
-        history: list,
+def _assistant_chat_response(
+        history: list[dict[str, str]] | None,
         message: str,
-) -> tuple[list[dict], str]:
-    """Respond to the user with a canned affirmative message."""
+        llm_name: Optional[str],
+        llm_dir: str,
+        temperature: Optional[float],
+        seed: Optional[float],
+        optimizer_name: Optional[str],
+        rules_dir: str,
+) -> Iterator[tuple[list[dict[str, str]], str]]:
+    """Generate a conversational response containing an optimised prompt suggestion."""
+    # consistency checks
     if not message or not message.strip():
-        return history, ""
-    return history + [{"role": "user", "content": message}, {"role": "assistant", "content": "Yes!"}], ""
+        gr.Warning("Received empty message for assistant chat; no action taken.")
+        yield history or [], ""
+        return
+    if not llm_name:
+        gr.Error("Select an LLM before requesting prompt help.")
+        yield history or [], ""
+        return
+    if not optimizer_name:
+        gr.Error("Select a prompt optimizer to continue.")
+        yield history or [], ""
+        return
+
+    # preparing inference parameters
+    temperature_value = float(temperature) if temperature is not None else 0.5
+    seed_value: Optional[int] = None
+    if seed is not None:
+        try:
+            seed_candidate = int(seed)
+        except (TypeError, ValueError):
+            seed_candidate = -1
+        if seed_candidate >= 0:
+            seed_value = seed_candidate
+
+    # append user message to conversation history
+    conversation: list[dict[str, str]] = list(history or [])
+    conversation.append({"role": "user", "content": message})
+    yield conversation, ""
+
+    # stream assistant response
+    conversation.append({"role": "assistant", "content": ""})
+    try:
+        stream = optimize_prompt(
+            description=message,
+            llm=llm_name,
+            llm_dir=llm_dir,
+            rules=optimizer_name,
+            rules_dir=rules_dir,
+            temperature=temperature_value,
+            seed=seed_value,
+            creative_mode=True,
+        )
+
+        produced_content = False
+        for chunk in stream:
+            produced_content = True
+            conversation[-1]["content"] += chunk
+            yield conversation, ""
+
+        if not produced_content:
+            gr.Error("Something went wrong during prompt optimization; no content produced.")
+            conversation.pop()
+            yield conversation, ""
+    except Exception as error:
+        logging.exception("assistant prompt optimization failed")
+        gr.Error("Something went wrong during prompt optimization; no content produced.")
+        conversation.pop()
+        yield conversation, ""
 
 
 def _default_choice(options: list[str]) -> Optional[str]:

@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - `app.py`: launches the interactive Gradio Blocks UI and wires controls to the API helpers.
-- `app_api.py`: reusable backend routines (`generate_prompt`, `generate_image`, `load_model`) shared by the UI and external callers.
+- `app_api.py`: reusable backend routines (`optimize_prompt`, `generate_image`, `load_model`) shared by the UI and external callers.
 - `api/`: adapters for LLMs, diffusers, and prompting rules; extend these when integrating new providers.
 - `data/`: default resources (`locales/en.toml`, `prompting_rules/*.toml`) that seed the UI; keep overrides in the same structure.
 - `optimizers/`: drop custom optimizer `.toml` files consumed by the prompting rules dropdown.
@@ -21,7 +21,7 @@ Adhere to idiomatic, type-annotated Python. Always favor code clarity over cleve
 - Group domain logic in `api/` and keep Gradio callbacks in `app.py` thin; prefer helper functions over long closures.
 
 ## Testing Guidelines
-- Prefer `pytest` with files named `tests/test_<area>.py`; focus on `generate_prompt` and `generate_image` behaviors.
+- Prefer `pytest` with files named `tests/test_<area>.py`; focus on `optimize_prompt` and `generate_image` behaviors.
 - Mock heavyweight model loads (LLM, diffuser) so tests remain fast and do not require GPU assets.
 - Target high-value paths: prompt optimization, error handling in `app_api.log`, and configuration parsing.
 
