@@ -45,7 +45,13 @@ class ControlPanel:
 
 
 def parse_cli_args() -> Namespace:
-    """Parse command-line arguments supplied by the user."""
+    """Parse command-line arguments supplied by the user.
+
+    Returns
+    -------
+    Namespace
+        Parsed CLI arguments ready for consumption.
+    """
     parser = ArgumentParser()
     parser.add_argument(
         "--language",
@@ -67,7 +73,24 @@ def build_ui(
         llm_directory: str,
         rules_directory: str
 ) -> gr.Blocks:
-    """Construct and wire the Gradio UI."""
+    """Construct and wire the Gradio UI.
+
+    Parameters
+    ----------
+    doc
+        Localised copy describing labels and helper text.
+    diffuser_directory
+        Filesystem location of supported diffusion models.
+    llm_directory
+        Filesystem location of supported llama.cpp models.
+    rules_directory
+        Filesystem location of prompting rule definitions.
+
+    Returns
+    -------
+    gr.Blocks
+        Configured Gradio Blocks application.
+    """
     available_llms = get_model_list(directory=llm_directory, model_type="llm")
     available_diffusers = get_model_list(directory=diffuser_directory, model_type="diffuser")
     available_optimizers = get_model_list(directory=rules_directory, model_type="optimizer")
@@ -298,7 +321,18 @@ def _default_choice(options: list[str]) -> Optional[str]:
 
 
 def validate_configuration(config: Dict[str, Any]) -> None:
-    """Ensure the runtime configuration contains the directories we need."""
+    """Ensure the runtime configuration contains the directories we need.
+
+    Parameters
+    ----------
+    config
+        Parsed configuration dictionary.
+
+    Raises
+    ------
+    MissingParameter
+        Raised when a required section is missing its directory value.
+    """
     required_sections = ("llm", "diffuser", "prompting_rules")
     for section in required_sections:
         directory = config.get(section, {}).get("directory")
@@ -307,7 +341,13 @@ def validate_configuration(config: Dict[str, Any]) -> None:
 
 
 def configure_logger(filepath: Optional[str] = None) -> None:
-    """Configure the root logger for both console and optional file targets."""
+    """Configure the root logger for both console and optional file targets.
+
+    Parameters
+    ----------
+    filepath
+        Optional file destination used in addition to stderr.
+    """
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
@@ -323,7 +363,18 @@ def configure_logger(filepath: Optional[str] = None) -> None:
 
 
 def load_ui_copy(language: str) -> Dict[str, Any]:
-    """Load the UI translation corresponding to ``language``."""
+    """Load the UI translation corresponding to ``language``.
+
+    Parameters
+    ----------
+    language
+        Translation key requested by the user.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Parsed TOML document describing the UI copy.
+    """
     locale_path = LOCALES_DIRECTORY / f"{language}.toml"
     if not locale_path.exists():
         logging.warning("Unsupported language '%s'; defaulting to '%s'.", language, DEFAULT_LANGUAGE)
@@ -332,7 +383,18 @@ def load_ui_copy(language: str) -> Dict[str, Any]:
 
 
 def load_configuration() -> Dict[str, Any]:
-    """Load the runtime configuration, falling back to the example file if needed."""
+    """Load the runtime configuration, falling back to the example file if needed.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Runtime configuration dictionary.
+
+    Raises
+    ------
+    RuntimeError
+        Raised when no configuration file could be loaded successfully.
+    """
     for candidate, is_fallback in ((CONFIG_PATH, False), (EXAMPLE_CONFIG_PATH, True)):
         try:
             config = _read_toml(candidate)
@@ -356,6 +418,7 @@ def _read_toml(path: Path) -> Dict[str, Any]:
 
 
 def main() -> None:
+    """Entry point wiring configuration, models, and the Gradio interface together."""
     parameters = parse_cli_args()
     configure_logger(parameters.logpath)
 

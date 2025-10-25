@@ -1,78 +1,92 @@
-# Dibujito
+# Dibujito ✨
 
-Welcome to Dibujito, a simple web app for llm-powered diffusion!
+*Prompt crafting, meet visual imagination.*
 
-This app combines the power of both *LLMs* (generative AI text-to-text models) and Diffusers (generative AI
-text-to-image models) in order to bring your ideas to life!
-Forget about prompt engineering or complex prompt syntaxes: the LLM plugged to your prompt will convert whatever you
-write into an optimized and accurate prompt, allowing the diffuser to craft a beautiful image corresponding to what you
-wrote.
+Dibujito is a playful yet powerful Gradio app that brings together two worlds: text and image generation. 💬➡️🖼️
+It couples a **Large Language Model** (LLM) to help you refine your prompts, with a **diffusion model** that turns them
+into images — all within a single interface. Start from a rough idea, chat your way to the perfect prompt, and generate
+the corresponding visuals without leaving the app!
 
-## Prerequisites
+---
 
-Dibujito uses local hugging face hub diffusers for the image generation part, but can use cloud-hosted LLMs from the
-most popular APIs (OpenAI, Cohere, etc.).
-If using such services, you will need to create an API token identifying you to the API.
-You can create it in the account setting of the targeted API.
+## 🧠 How It Works (A Quick Technical Tour)
 
-**Note**: using such APIs is rarely free.
-You will probably need to provide a payment mean prior to using the API models.
+Behind the scenes, Dibujito runs on two main engines:
 
-## Quickstart
+* A chat assistant powered by [`llama.cpp`](https://github.com/ggml-org/llama.cpp) through the [
+  `llama-cpp-python`](https://github.com/abetlen/llama-cpp-python) bindings.
+*
+A [Stable Diffusion XL pipeline](https://huggingface.co/docs/diffusers/v0.35.1/en/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline)
+from the [`diffusers`](https://huggingface.co/docs/diffusers/index) library.
 
-Prior to using Dibujito, you must first install, then configure it.
+The choice of `llama.cpp` is deliberate: it provides excellent inference speed even on CPUs, unlike many other
+frameworks such as `transformers`. The long-term goal is to allow **decoupled inference**, meaning Dibujito will be able
+to run the LLM on the CPU while the diffusion model runs on the GPU — helping you make the most of your hardware. ⚙️
+*(This feature is under development — for now, allocation is handled by your system automatically.)*
 
-### Installation
+> 💡 **Note:** Dibujito has only been tested with **Stable Diffusion XL** (SDXL). Other architectures may not work out of
+> the box.
 
-Simply clone this repository on your system and install the dependencies specified
-in [requirements.txt](requirements.txt):
+---
 
-```shell
-pip install -r requirements.txt
+## 🚀 Getting Started
+
+Clone the repository on your machine and create a virtual environment (recommended):
+
+```bash
+python -m venv .venv
 ```
 
-**Note**: it is advised to first configure a virtual environment prior to installing these.
+Then activate it:
 
-### Configuration
+```bash
+source .venv/bin/activate  # On Windows use: .\.venv\Scripts\activate
+```
 
-Configuring Dibujito is done by copying the [config_example.toml](config_example.toml) file in the root directory of the
-solution and rename it to ``config.toml``.
-You must then set the variables defined in the file to their appropriate values.
-Follow the instructions in the file in order to do so.
+Install the dependencies:
 
-Once the configuration file is properly set-up, you can run the app simply by calling [app.py](app.py) with your python
-interpreter:
+```bash
+python -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu126
+```
 
-```shell
+🧩 The `--extra-index-url` flag ensures you get the right CUDA-enabled PyTorch build. If your CUDA version differs, check
+the [official PyTorch installation page](https://pytorch.org/get-started/locally/) for the correct URL.
+You can remove this flag if you plan to run on CPU only (not recommended).
+
+Next, download your models:
+
+* Diffusion models (`.safetensors`) → [Civitai](https://civitai.com/) or [Hugging Face](https://huggingface.co/)
+* LLMs (`.gguf`) → [Hugging Face](https://huggingface.co/) and
+  the [lmstudio-community collection](https://huggingface.co/lmstudio-community)
+
+Copy the example config file:
+
+```bash
+cp config_example.toml config.toml
+```
+
+Then edit `config.toml` to point to the folders containing your models.
+Once done, launch the app:
+
+```bash
 python app.py
 ```
 
-## Local Use
+Open your browser at [http://localhost:7860](http://localhost:7860) — and voilà! Dibujito is ready to turn your words
+into visuals. 🌈
 
-Dibujito allows for a fully local use of generative AI models by supporting the [ollama API](https://ollama.com).
-This tool allows use many popular open-source LLMs locally on your PC.
-Ollama is based on [`llama.cpp`](https://github.com/ggerganov/llama.cpp), which is a library providing C++
-implementations of many LLMs.
-Since these versions are implemented in C++ without any dependency, they are optimized for speed and can even decently
-run on your RAM and CPU, without the need of a GPU (for larger models, it is strongly recommended though).
-Therefore, you can combine both Ollama for the LLM prompt-optimization and Hugging Face for the text-to-image generation
-and enjoy a fully local experience.
+---
 
-In order to use the ``ollama`` API, start by running a local server on your PC (or any other PC you own).
-Then set the corresponding variables in the ``config.toml`` file to the ``"ollama"`` API.
-Also provide the hostname of your server (``"localhost"`` if the server is running on the same computer).
-Once this is done, you're all set and ready to go!
-Simply run the app and enjoy!
+## ⚠️ Important Notes
 
-## Recommendend Specs
+* **Models are not included.** You must provide your own `.safetensors` and `.gguf` files.
+* **Only SDXL** has been tested so far.
+* **Tests performed only on my Nvidia GPU.** AMD and Intel GPU support is untested.
+* **All models run locally.** No data leaves your machine. You’ll need a GPU with **≥12 GB VRAM** for smooth diffusion
+  inference.
+* **Performance tip:** For now, both LLM and diffusion inference share your default compute device. CPU offloading is
+  planned for a future release.
 
-Since the text-to-image part is always performed in your PC, a decent GPU is required in order to be able to generate
-images with a reasonable latency.
-Dibujito supports natively the following diffusion models of various sizes:
+---
 
-| model                                                                              | architecture        | VRAM needed | lowest appropriate nvidia GPU |
-|------------------------------------------------------------------------------------|---------------------|-------------|-------------------------------|
-| [Dreamshaper](https://huggingface.co/Lykon/dreamshaper-8)                          | Stable Diffusion 1  | 6 Gb        | GTX 1660, RTX 3050,           |
-| [Playground](https://huggingface.co/playgroundai/playground-v2.5-1024px-aesthetic) | Stable Diffusion XL | 12 Gb       | RTX 3060                      |
-| [Juggernaut](https://huggingface.co/RunDiffusion/Juggernaut-XI-v11)                | Stable Diffusion XL | 12 Gb       | RTX 3060                      |
-
+Enjoy playing with prompts, and happy drawing with Dibujito! 🎨

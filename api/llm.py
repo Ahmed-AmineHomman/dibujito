@@ -47,6 +47,15 @@ class LLM:
             filepath: Optional[str] = None,
             instructions: Optional[str] = None
     ) -> None:
+        """Initialise the llama.cpp wrapper.
+
+        Parameters
+        ----------
+        filepath
+            Optional GGUF checkpoint to load on instantiation.
+        instructions
+            Optional system prompt applied before responding.
+        """
         self._llm: Optional[Llama] = None
         self._model_path: Optional[str] = None
         self._context_length: Optional[int] = None
@@ -67,7 +76,25 @@ class LLM:
             filepath: str,
             context_length: Optional[int] = None
     ) -> None:
-        """Load a llama.cpp-compatible model from ``filepath``."""
+        """Load a llama.cpp-compatible model from ``filepath``.
+
+        Parameters
+        ----------
+        filepath
+            Path to a GGUF model compatible with llama.cpp.
+        context_length
+            Optional context window override. When omitted the llama.cpp
+            default is used.
+
+        Raises
+        ------
+        FileNotFoundError
+            Raised when ``filepath`` does not point to an existing file.
+        IsADirectoryError
+            Raised when ``filepath`` targets a directory.
+        ValueError
+            Raised when the supplied file extension is unsupported.
+        """
         path = self._validate_model_path(filepath)
 
         if self._model_path == str(path) and self.ready:
@@ -94,7 +121,13 @@ class LLM:
             self,
             instructions: str
     ) -> None:
-        """Set the system instructions used for chat completions."""
+        """Set the system instructions used for chat completions.
+
+        Parameters
+        ----------
+        instructions
+            System prompt to prepend to all conversations.
+        """
         type(self).system_instructions = instructions.strip()
 
     def configure_prompting(
@@ -102,7 +135,15 @@ class LLM:
             rules: PromptingRules,
             creative_mode: bool = True,
     ) -> None:
-        """Prepare system instructions based on the provided prompting rules."""
+        """Prepare system instructions based on the provided prompting rules.
+
+        Parameters
+        ----------
+        rules
+            Prompting rules describing structure, prefix, suffix, and examples.
+        creative_mode
+            When ``True`` the assistant may invent details to complete prompts.
+        """
         creative_instructions = (
             self
             ._build_creative_instructions(creative_mode=creative_mode)
@@ -148,6 +189,11 @@ class LLM:
         Union[str, Iterator[str]]
             Full assistant reply when ``stream`` is False, otherwise an iterator
             yielding completion fragments.
+
+        Raises
+        ------
+        RuntimeError
+            Raised when no llama.cpp model has been loaded.
         """
         if not self.ready or self._llm is None:
             message = "No model loaded. Call `load_model` before using `respond`."

@@ -27,7 +27,18 @@ class Diffuser:
         "sdxl": {"square": (1024, 1024), "portrait": (960, 1280), "landscape": (1280, 960)},
     }
 
-    def __init__(self, filepath: Optional[str] = None) -> None:
+    def __init__(
+            self,
+            filepath: Optional[str] = None
+    ) -> None:
+        """Initialise the diffusion pipeline wrapper.
+
+        Parameters
+        ----------
+        filepath
+            Optional path to a ``.safetensors`` checkpoint loaded during
+            instantiation.
+        """
         self.ready = False
         self.model_path = ""
         self.architecture = "sd1"
@@ -37,10 +48,35 @@ class Diffuser:
 
     @staticmethod
     def get_supported_aspects() -> list[str]:
+        """Return the aspect ratio identifiers supported by the pipeline.
+
+        Returns
+        -------
+        list[str]
+            Supported aspect ratio identifiers.
+        """
         return ["square", "portrait", "landscape"]
 
-    def load_model(self, filepath: str) -> None:
-        """Load the diffusion weights from ``filepath`` and prepare the runtime pipeline."""
+    def load_model(
+            self,
+            filepath: str
+    ) -> None:
+        """Load the diffusion weights from ``filepath`` and prepare the runtime pipeline.
+
+        Parameters
+        ----------
+        filepath
+            Path to a ``.safetensors`` model file.
+
+        Raises
+        ------
+        FileNotFoundError
+            Raised when the supplied path does not exist.
+        IsADirectoryError
+            Raised when the supplied path points to a directory.
+        ValueError
+            Raised when the supplied file extension is unsupported.
+        """
         if self.ready and filepath == self.model_path:
             logger.info("Skipping pipeline load; '%s' already active.", filepath)
             return
@@ -60,18 +96,53 @@ class Diffuser:
         self.model_path = str(path)
 
     def imagine(
-        self,
-        prompt: str,
-        negative_prompt: Optional[str] = None,
-        aspect: str = "square",
-        steps: int = 20,
-        guidance: float = 7,
-        seed: Optional[int] = None,
-        preview_frequency: Optional[int] = None,
-        preview_method: str = "fast",
-        preview_callback: Optional[Callable[[Image.Image, int], None]] = None,
+            self,
+            prompt: str,
+            negative_prompt: Optional[str] = None,
+            aspect: str = "square",
+            steps: int = 20,
+            guidance: float = 7,
+            seed: Optional[int] = None,
+            preview_frequency: Optional[int] = None,
+            preview_method: str = "fast",
+            preview_callback: Optional[Callable[[Image.Image, int], None]] = None,
     ) -> Image.Image:
-        """Generate an image corresponding to ``prompt``."""
+        """Generate an image corresponding to ``prompt``.
+
+        Parameters
+        ----------
+        prompt
+            Text description of the desired outcome.
+        negative_prompt
+            Optional instructions that should be avoided.
+        aspect
+            Aspect ratio identifier, as returned by ``get_supported_aspects``.
+        steps
+            Number of sampling steps to perform.
+        guidance
+            Classifier-free guidance scale.
+        seed
+            Optional deterministic seed.
+        preview_frequency
+            Interval (in steps) at which previews should be emitted. ``None``
+            or ``0`` disables previews.
+        preview_method
+            Decoder used for previews. Accepts ``fast``, ``medium`` or ``full``.
+        preview_callback
+            Callable receiving preview images along with the current step.
+
+        Returns
+        -------
+        Image.Image
+            Final image produced by the diffusion pipeline.
+
+        Raises
+        ------
+        RuntimeError
+            Raised when no model is loaded before invocation.
+        ValueError
+            Raised when ``aspect`` is unsupported.
+        """
         if not self.ready:
             message = "No model loaded. Please call `load_model` to load a model first."
             logger.error(message)
@@ -85,7 +156,12 @@ class Diffuser:
         preview_frequency = preview_frequency if previews_enabled else 0
         decode_preview = self._select_preview_decoder(preview_method)
 
-        def _callback(_pipeline, step: int, _t: torch.Tensor, kwargs: dict) -> dict:
+        def _callback(
+                _pipeline,
+                step: int,
+                _t: torch.Tensor,
+                kwargs: dict
+        ) -> dict:
             if previews_enabled and ((step + 1) % preview_frequency == 0):
                 latents = kwargs["latents"]
                 try:
@@ -116,7 +192,10 @@ class Diffuser:
 
         return output.images[0]
 
-    def _validate_model_path(self, filepath: str) -> Path:
+    def _validate_model_path(
+            self,
+            filepath: str
+    ) -> Path:
         path = Path(filepath)
         if not path.exists():
             message = f"Provided filepath '{filepath}' does not exist."
@@ -132,14 +211,24 @@ class Diffuser:
             raise ValueError(message)
         return path
 
-    def _detect_architecture(self, filepath: str) -> str:
+    def _detect_architecture(
+            self,
+            filepath: str
+    ) -> str:
         return "sd1" if len(load_file(filepath)) < 2000 else "sdxl"
 
-    def _create_pipeline(self, filepath: str, architecture: str) -> StableDiffusionPipeline:
+    def _create_pipeline(
+            self,
+            filepath: str,
+            architecture: str
+    ) -> StableDiffusionPipeline:
         pipeline_cls = StableDiffusionPipeline if architecture == "sd1" else StableDiffusionXLPipeline
         return pipeline_cls.from_single_file(pretrained_model_link_or_path=filepath, torch_dtype=torch.float16)
 
-    def _select_preview_decoder(self, preview_method: str) -> Callable[[torch.Tensor], Image.Image]:
+    def _select_preview_decoder(
+            self,
+            preview_method: str
+    ) -> Callable[[torch.Tensor], Image.Image]:
         method = (preview_method or "fast").lower()
         decoders = {
             "fast": self._latents_to_image_fast,
@@ -151,14 +240,20 @@ class Diffuser:
             method = "fast"
         return decoders[method]
 
-    def _build_generator(self, seed: Optional[int]) -> torch.Generator:
+    def _build_generator(
+            self,
+            seed: Optional[int]
+    ) -> torch.Generator:
         generator = torch.Generator(device="cuda" if self.cuda else "cpu")
         if seed is not None:
             generator.manual_seed(seed)
         return generator
 
     @torch.inference_mode()
-    def _latents_to_image_fast(self, latents: torch.Tensor) -> Image.Image:
+    def _latents_to_image_fast(
+            self,
+            latents: torch.Tensor
+    ) -> Image.Image:
         """
         Produce a quick-and-dirty RGB preview (~128px) from SD latents.
         Mirrors the method shown in the diffusers documentation for fast previews.
@@ -176,14 +271,31 @@ class Diffuser:
         return Image.fromarray(image).resize((width_latent * 8, height_latent * 8), Image.BICUBIC)
 
     @torch.inference_mode()
-    def latents_to_image_medium(self, latents: torch.Tensor) -> Image.Image:
-        """Decode SDXL latents using the Tiny AutoEncoder (TAESDXL)."""
+    def latents_to_image_medium(
+            self,
+            latents: torch.Tensor
+    ) -> Image.Image:
+        """Decode SDXL latents using the Tiny AutoEncoder (TAESDXL).
+
+        Parameters
+        ----------
+        latents
+            Latent tensor produced by the diffusion scheduler.
+
+        Returns
+        -------
+        Image.Image
+            Decoded preview image.
+        """
         sample = self.tiny_vae.decode(latents, return_dict=False)[0]
         images = self.pipeline.image_processor.postprocess(sample, output_type="pil")
         return images[0]
 
     @torch.inference_mode()
-    def _latents_to_image_full(self, latents: torch.Tensor) -> Image.Image:
+    def _latents_to_image_full(
+            self,
+            latents: torch.Tensor
+    ) -> Image.Image:
         """Fully decode latents with the heavyweight VAE for a high-quality preview."""
         latents = latents / self.pipeline.vae.config.scaling_factor
         sample = self.pipeline.vae.decode(latents, return_dict=False)[0]

@@ -18,18 +18,43 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelRegistry:
-    """Keeps track of the currently loaded backend models"""
+    """Keeps track of the currently loaded backend models."""
 
     writer: Optional[LLM] = None
     artist: Optional[Diffuser] = None
 
-    def register(self, llm: Optional[LLM] = None, diffuser: Optional[Diffuser] = None) -> None:
+    def register(
+            self,
+            llm: Optional[LLM] = None,
+            diffuser: Optional[Diffuser] = None
+    ) -> None:
+        """Register the backend instances that power the UI.
+
+        Parameters
+        ----------
+        llm
+            Loaded large language model used for prompt authoring.
+        diffuser
+            Diffusion pipeline responsible for image generation.
+        """
         if llm is not None:
             self.writer = llm
         if diffuser is not None:
             self.artist = diffuser
 
     def require_writer(self) -> LLM:
+        """Return the previously registered language model.
+
+        Returns
+        -------
+        LLM
+            Language model ready for inference.
+
+        Raises
+        ------
+        RuntimeError
+            Raised when no language model has been registered yet.
+        """
         if self.writer is None:
             message = "No LLM registered. Call `load_model` during startup to provide one."
             logger.error(message)
@@ -37,6 +62,18 @@ class ModelRegistry:
         return self.writer
 
     def require_artist(self) -> Diffuser:
+        """Return the previously registered diffusion pipeline.
+
+        Returns
+        -------
+        Diffuser
+            Diffusion pipeline ready for inference.
+
+        Raises
+        ------
+        RuntimeError
+            Raised when no diffusion pipeline has been registered yet.
+        """
         if self.artist is None:
             message = "No diffuser registered. Call `load_model` during startup to provide one."
             logger.error(message)
@@ -47,13 +84,48 @@ class ModelRegistry:
 MODELS = ModelRegistry()
 
 
-def load_model(llm: Optional[LLM] = None, diffuser: Optional[Diffuser] = None) -> None:
-    """Registers the provided models so downstream helpers can access them at runtime."""
+def load_model(
+        llm: Optional[LLM] = None,
+        diffuser: Optional[Diffuser] = None
+) -> None:
+    """Register the provided models so downstream helpers can access them at runtime.
+
+    Parameters
+    ----------
+    llm
+        Language model used for prompt authoring.
+    diffuser
+        Diffusion pipeline used for image synthesis.
+    """
     MODELS.register(llm=llm, diffuser=diffuser)
 
 
-def get_model_list(directory: str, model_type: str) -> list[str]:
-    """Returns the list of supported model files contained in ``directory``."""
+def get_model_list(
+        directory: str,
+        model_type: str
+) -> list[str]:
+    """Return the list of supported model files contained in ``directory``.
+
+    Parameters
+    ----------
+    directory
+        Path that should contain models of the requested type.
+    model_type
+        Kind of model to discover. Supported values are ``llm``, ``diffuser``,
+        and ``optimizer``.
+
+    Returns
+    -------
+    list[str]
+        Sorted collection of file names matching the requested type.
+
+    Raises
+    ------
+    ValueError
+        Raised when ``model_type`` is unknown.
+    FileNotFoundError
+        Raised when ``directory`` does not exist.
+    """
     extension_mapper = {
         "llm": ".gguf",
         "diffuser": ".safetensors",
@@ -78,14 +150,36 @@ def get_model_list(directory: str, model_type: str) -> list[str]:
     return names
 
 
-def log(  # noqa: D401 - keep docstring short and focused
+def log(
         message: str,
         message_type: str = "info",
         progress: Optional[float] = 0.0,
         progressbar: Optional[gr.Progress] = None,
         show_in_ui: bool = False,
 ) -> None:
-    """Log a message and optionally surface it in the Gradio UI."""
+    """Log a message and optionally surface it in the Gradio UI.
+
+    Parameters
+    ----------
+    message
+        Human-readable message to record.
+    message_type
+        Logging level to apply. Accepted values are ``info``, ``warning`` and
+        ``error``.
+    progress
+        Floating-point completion indicator forwarded to the Gradio progress
+        component when available.
+    progressbar
+        Optional Gradio progress component to update.
+    show_in_ui
+        When ``True``, always display the notification inside the UI.
+
+    Raises
+    ------
+    gr.Error
+        Raised when ``message_type`` is unsupported or explicitly set to
+        ``error``.
+    """
     level_handlers = {
         "info": logger.info,
         "warning": logger.warning,
@@ -245,7 +339,37 @@ def generate_image(
         aspect: str = "square",
         seed: Optional[int] = -1,
 ) -> Iterator[Image.Image]:
-    """Generate an image (and optional previews) using the configured diffusion pipeline."""
+    """Generate an image (and optional previews) using the configured diffusion pipeline.
+
+    Parameters
+    ----------
+    prompt
+        Text description of the image to generate.
+    diffuser
+        File name of the diffusion weights selected by the user.
+    diffuser_dir
+        Directory containing available diffusion models.
+    negative_prompt
+        Optional negative prompt supplied by the user.
+    steps
+        Number of denoising iterations to perform.
+    guidance
+        Classifier-free guidance scale.
+    preview_frequency
+        Interval (in steps) for publishing intermediate previews. ``0`` disables
+        previews.
+    preview_method
+        Preview decoding strategy. Must be ``fast``, ``medium`` or ``full``.
+    aspect
+        Desired aspect ratio identifier.
+    seed
+        Optional deterministic seed. Set to ``-1`` to disable determinism.
+
+    Yields
+    ------
+    Iterator[Image.Image]
+        Intermediate preview images followed by the final render.
+    """
     queue: SimpleQueue[object] = SimpleQueue()
     sentinel = object()
 
@@ -264,7 +388,10 @@ def generate_image(
     seed = _normalise_seed(seed)
 
     # define pipeline runner
-    def handle_preview(image: Image.Image, step: int) -> None:
+    def handle_preview(
+            image: Image.Image,
+            step: int
+    ) -> None:
         queue.put(image)
 
     def run_pipeline() -> None:
@@ -308,21 +435,11 @@ def generate_image(
     log(message="done")
 
 
-def _generate_image_with_previews(
-        artist: Diffuser,
-        prompt: str,
-        negative_prompt: Optional[str],
-        steps: int,
-        guidance: float,
-        aspect: str,
-        seed: Optional[int],
-        preview_frequency: int,
-        preview_method: str,
-) -> Iterator[Image.Image]:
-    """Stream intermediate previews while the diffusion pipeline runs."""
-
-
-def _load_writer_model(writer: LLM, model_dir: str, model_name: str) -> None:
+def _load_writer_model(
+        writer: LLM,
+        model_dir: str,
+        model_name: str
+) -> None:
     model_path = Path(model_dir) / model_name
     try:
         writer.load_model(filepath=str(model_path))
@@ -330,7 +447,10 @@ def _load_writer_model(writer: LLM, model_dir: str, model_name: str) -> None:
         log(message=f"error (llm loading): {error}", message_type="error")
 
 
-def _load_prompting_rules(directory: str, rule_name: str) -> PromptingRules:
+def _load_prompting_rules(
+        directory: str,
+        rule_name: str
+) -> PromptingRules:
     filepath = Path(directory) / rule_name
     try:
         return PromptingRules.from_toml(filepath=str(filepath))
@@ -338,7 +458,11 @@ def _load_prompting_rules(directory: str, rule_name: str) -> PromptingRules:
         log(message=f"error (rules loading): {error}", message_type="error")
 
 
-def _load_diffuser_model(artist: Diffuser, model_dir: str, model_name: str) -> None:
+def _load_diffuser_model(
+        artist: Diffuser,
+        model_dir: str,
+        model_name: str
+) -> None:
     model_path = Path(model_dir) / model_name
     try:
         artist.load_model(filepath=str(model_path))
@@ -382,7 +506,11 @@ def _normalise_preview_method(method: Optional[str]) -> str:
     return method
 
 
-def _notify_ui(message: str, severity: str, force: bool) -> None:
+def _notify_ui(
+        message: str,
+        severity: str,
+        force: bool
+) -> None:
     """Render a Gradio notification if needed."""
     display_in_ui = force or severity in {"warning", "error"}
     if not display_in_ui:
