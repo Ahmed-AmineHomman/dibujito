@@ -1,75 +1,100 @@
-title = "Dibujito"
-tagline = "Describe your idea, tweak the controls and watch the image evolve."
-image_label = "Image preview"
-improve_button = "Improve"
-generate_button = "Generate"
-prompt_label = "Positive prompt"
-prompt_placeholder = "Describe the image you want to generate."
-prompt_info = "This description is optionally optimized before it reaches the diffuser."
-negative_prompt_label = "Negative prompt"
-negative_prompt_placeholder = "List elements to avoid (comma separated)."
-negative_prompt_info = "Leave blank unless you want to steer the model away from specific details."
-control_panel_title = "Controls"
-optimizer_section_title = "Prompt optimizer"
-diffuser_section_title = "Diffusion model"
-app_section_title = "Preview & output"
-preview_frequency_label = "Preview every N steps"
-preview_frequency_info = "Set to 0 to skip intermediate previews."
-preview_frequency_default = 0
-preview_method_label = "Preview method"
-preview_method_info = 'Select how intermediate previews are decoded. "fast" is the quickest option.'
+# Header
+header.title = "Dibujito"
+header.tagline = "Describe your idea, tweak the controls and watch the image evolve."
 
-# llm parameters
-parameter_llm_label = "LLM"
-parameter_llm_description = """
+# ------------------------ #
+# Control panel parameters #
+# ------------------------ #
+
+## LLM-related parameters
+control.llm.title = "LLM"
+control.llm.tagline = "Parameters of the large language model (LLM)."
+control.llm.llm.label = "LLM"
+control.llm.llm.info = """
 Choose your desired large language model (LLM).
 The LLM will be in charge of optimizing and enhancing your prompt prior to sending it to the Diffuser.
 """
-parameter_rules_label = "Prompting Rules"
-parameter_rules_description = """
-Choose the rules file specifying the prompting rules that the LLM will follow when optimizing your prompt.
-"""
-parameter_llm_temperature_label = "Temperature"
-parameter_llm_temperature_description = """
+control.llm.temperature.label = "Temperature"
+control.llm.temperature.info = """
 The temperature controls how creative the LLM will be when outputting its response.
 In this use case, you should prefer relatevely high values (close to 1).
 """
-parameter_llm_seed_label = "Random Seed"
-parameter_llm_seed_description = """
+control.llm.seed.label = "Random Seed"
+control.llm.seed.info = """
 Seed controlling the generation of the LLM (for reproducibility).
 Set to -1 for random.
 """
 
-# diffusion parameters
-parameter_diffuser_label = "Diffuser"
-parameter_diffuser_description = """
+## Diffuser-related parameters
+control.diffuser.title = "Diffuser"
+control.diffuser.tagline = "Parameters of the text-to-image model"
+control.diffuser.diffuser.label = "Diffuser"
+control.diffuser.diffuser.info = """
 Choose your desired text-to-image diffusion model.
 The diffuser is in charge of generating an image corresponding to the provided prompt.
 """
-parameter_negative_prompt_label = "Prompt (negative)"
-parameter_negative_prompt_description = """
-Specify here what you do NOT want to see in the image.
-Use comma-separated keywords here.
+control.diffuser.positive_suffix.label = "Positive Prompt Suffix"
+control.diffuser.positive_suffix.info = """
+An optional suffix that will be appended to all positive prompts sent to the diffuser.
+Useful to add model-specific keywords that improve image quality.
 """
-parameter_steps_label = "Number of Steps"
-parameter_steps_description = """
+control.diffuser.negative_suffix.label = "Negative Prompt Suffix"
+control.diffuser.negative_suffix.info = """
+An optional suffix that will be appended to all negative prompts sent to the diffuser.
+Useful to add model-specific keywords that improve image quality.
+"""
+control.diffuser.steps.label = "Number of Steps"
+control.diffuser.steps.info = """
 Determine the number of steps for the diffusion process.
 More steps result in more detailed and realistic images but require longer processing times.
 """
-parameter_guidance_label = "Guidance Scale"
-parameter_guidance_description = """
+control.diffuser.guidance.label = "Guidance Scale"
+control.diffuser.guidance.info = """
 Set the guidance scale.
 Controls how closely the diffusion model follows your prompt.
 Higher values create images closer to your prompt but may cause artifacts.
 Lower values give the model more artistic freedom but can yield inconsistent images.
 """
-parameter_aspect_label = "Aspect Ratio"
-parameter_aspect_description = """
-Set the aspect ratio of the generated images.
-"""
-parameter_seed_label = "Random Seed"
-parameter_seed_description = """
+control.diffuser.seed.label = "Random Seed"
+control.diffuser.seed.info = """
 Set a random seed for reproducibility.
 Use the same seed to generate identical images with the same prompt.
 Leave empty for a random seed.
 """
+
+## App-related parameters
+control.app.title = "App"
+control.app.tagline = "Parameters of the application."
+control.app.aspect.label = "Aspect Ratio"
+control.app.aspect.info = """
+Set the aspect ratio of the generated images.
+"""
+control.app.optimizer.label = "Prompt Optimizer"
+control.app.optimizer.info = """
+Choose the optimizer defining how your prompt will be optimized.
+"""
+control.app.preview_frequency.label = "Preview frequency"
+control.app.preview_frequency.info = """
+Determine how often intermediate previews are generated during the diffusion process.
+Set to 0 to skip intermediate previews.
+"""
+control.app.preview_method.label = "Preview method"
+control.app.preview_method.info = """
+Select how intermediate previews are decoded. "fast" is the quickest (and recommended) option.
+"""
+
+# Chatbot
+control.chatbot.title = "Assistant"
+control.chatbot.tagline = "Assitant helping you craft better prompts."
+control.chatbot.chatbot.label = "Assistant"
+control.chatbot.input.placeholder = "Ask me anything about prompt engineering..."
+
+# --------------------------- #
+# Generation panel parameters #
+# --------------------------- #
+
+generation.image.label = "Image preview"
+generation.positive_prompt.label = "Positive prompt"
+generation.positive_prompt.placeholder = "Describe the image you want to generate."
+generation.negative_prompt.label = "Negative prompt"
+generation.negative_prompt.placeholder = "List elements to avoid (comma separated)."

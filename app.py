@@ -4,14 +4,14 @@ import logging
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from pathlib import Path
+from tomllib import load as load_toml
 from typing import Any, Dict, Optional
 
 import gradio as gr
 from click import MissingParameter
-from tomllib import load as load_toml
 
 from api import Diffuser, LLM, get_supported_image_ratios
-from app_api import generate_image, generate_prompt, get_model_list, load_model
+from app_api import generate_image, get_model_list, load_model
 
 LANGUAGES = ("en",)
 DEFAULT_LANGUAGE = "en"
@@ -21,27 +21,27 @@ LOCALES_DIRECTORY = Path(__file__).parent / "data" / "locales"
 
 
 @dataclass
-class PromptSection:
+class GenerationPanel:
     image: gr.Image
-    prompt: gr.Textbox
+    positive_prompt: gr.Textbox
     negative_prompt: gr.Textbox
-    improve_button: gr.Button
-    generate_button: gr.Button
 
 
 @dataclass
-class ModelSection:
+class ControlPanel:
     llm: gr.Dropdown
-    rules: gr.Dropdown
-    temperature: gr.Slider
-    seed: gr.Number
+    optimizer: gr.Dropdown
+    llm_temperature: gr.Slider
+    llm_seed: gr.Number
     diffuser: gr.Dropdown
-    steps: gr.Slider
-    guidance: gr.Slider
+    diffuser_steps: gr.Slider
+    diffuser_guidance: gr.Slider
     diffuser_seed: gr.Number
     preview_frequency: gr.Slider
     preview_method: gr.Radio
     aspect: gr.Dropdown
+    chatbot: gr.Chatbot
+    chatbot_input: gr.Textbox
 
 
 def parse_cli_args() -> Namespace:
@@ -61,7 +61,12 @@ def parse_cli_args() -> Namespace:
     return parser.parse_args()
 
 
-def build_ui(doc: Dict[str, Any], diffuser_directory: str, llm_directory: str, rules_directory: str) -> gr.Blocks:
+def build_ui(
+        doc: Dict[str, Any],
+        diffuser_directory: str,
+        llm_directory: str,
+        rules_directory: str
+) -> gr.Blocks:
     """Construct and wire the Gradio UI."""
     available_llms = get_model_list(directory=llm_directory, model_type="llm")
     available_diffusers = get_model_list(directory=diffuser_directory, model_type="diffuser")
@@ -69,201 +74,222 @@ def build_ui(doc: Dict[str, Any], diffuser_directory: str, llm_directory: str, r
 
     with gr.Blocks() as app:
         _build_header(doc)
-        with gr.Row(equal_height=False):
-            prompt_section = _build_prompt_section(doc)
-            model_section = _build_model_section(doc, available_llms, available_diffusers, available_optimizers)
+        with gr.Row(elem_id="main-layout", equal_height=True):
+            generation_panel = _build_generation_panel(doc)
+            control_panel = _build_control_panel(doc, available_llms, available_diffusers, available_optimizers)
 
         diffuser_state = gr.State(diffuser_directory)
-        llm_state = gr.State(llm_directory)
-        rules_state = gr.State(rules_directory)
-        project_state = gr.State("")
 
-        prompt_section.improve_button.click(
-            fn=generate_prompt,
-            inputs=[
-                prompt_section.prompt,
-                model_section.llm,
-                llm_state,
-                model_section.rules,
-                rules_state,
-                project_state,
-                model_section.temperature,
-                model_section.seed,
-            ],
-            outputs=[prompt_section.prompt],
-        )
-        prompt_section.generate_button.click(
+        image_inputs = [
+            generation_panel.positive_prompt,
+            control_panel.diffuser,
+            diffuser_state,
+            generation_panel.negative_prompt,
+            control_panel.diffuser_steps,
+            control_panel.diffuser_guidance,
+            control_panel.preview_frequency,
+            control_panel.preview_method,
+            control_panel.aspect,
+            control_panel.diffuser_seed,
+        ]
+        generation_panel.positive_prompt.submit(
             fn=generate_image,
-            inputs=[
-                prompt_section.prompt,
-                model_section.diffuser,
-                diffuser_state,
-                prompt_section.negative_prompt,
-                model_section.steps,
-                model_section.guidance,
-                model_section.preview_frequency,
-                model_section.preview_method,
-                model_section.aspect,
-                model_section.diffuser_seed,
-            ],
-            outputs=[prompt_section.image],
+            inputs=image_inputs,
+            outputs=[generation_panel.image],
+        )
+        generation_panel.negative_prompt.submit(
+            fn=generate_image,
+            inputs=image_inputs,
+            outputs=[generation_panel.image],
+        )
+        control_panel.chatbot_input.submit(
+            fn=_dummy_chat_response,
+            inputs=[control_panel.chatbot, control_panel.chatbot_input],
+            outputs=[control_panel.chatbot, control_panel.chatbot_input],
         )
     return app
 
 
 def _build_header(doc: Dict[str, Any]) -> None:
-    gr.Markdown(f"# {doc.get('title', '')}")
-    tagline = doc.get("tagline")
-    if tagline:
-        gr.Markdown(tagline)
+    gr.Markdown(f"# {doc.get("header").get('title')}")
+    if doc.get("header").get("tagline"):
+        gr.Markdown(doc.get("header").get("tagline"))
 
 
-def _build_prompt_section(doc: Dict[str, Any]) -> PromptSection:
-    with gr.Column(scale=4, min_width=640):
+def _build_generation_panel(doc: Dict[str, Any]) -> GenerationPanel:
+    with gr.Column(scale=3, min_width=520):
         image = gr.Image(
-            label=doc.get("image_label"),
+            label=doc.get("generation").get("image").get("label"),
             format="png",
             type="pil",
             container=False,
         )
-        prompt = gr.Textbox(
-            label=doc.get("prompt_label"),
-            placeholder=doc.get("prompt_placeholder"),
-            info=doc.get("prompt_info"),
-            interactive=True,
-            lines=8,
-        )
-        negative_prompt = gr.Textbox(
-            label=doc.get("negative_prompt_label"),
-            placeholder=doc.get("negative_prompt_placeholder"),
-            info=doc.get("negative_prompt_info"),
-            interactive=True,
-            lines=3,
-        )
-        with gr.Row():
-            improve_button = gr.Button(
-                value=doc.get("improve_button"),
-                variant="secondary",
+        with gr.Group():
+            positive_prompt = gr.Textbox(
+                label=doc.get("generation").get("positive_prompt").get("label"),
+                placeholder=doc.get("generation").get("positive_prompt").get("placeholder"),
+                info=doc.get("generation").get("positive_prompt").get("info"),
+                interactive=True,
+                lines=6,
             )
-            generate_button = gr.Button(
-                value=doc.get("generate_button"),
-                variant="primary",
+            negative_prompt = gr.Textbox(
+                label=doc.get("generation").get("negative_prompt").get("label"),
+                placeholder=doc.get("generation").get("negative_prompt").get("placeholder"),
+                info=doc.get("generation").get("negative_prompt").get("info"),
+                interactive=True,
+                lines=2,
             )
-    return PromptSection(
+    return GenerationPanel(
         image=image,
-        prompt=prompt,
+        positive_prompt=positive_prompt,
         negative_prompt=negative_prompt,
-        improve_button=improve_button,
-        generate_button=generate_button,
     )
 
 
-def _build_model_section(
-    doc: Dict[str, Any],
-    available_llms: list[str],
-    available_diffusers: list[str],
-    available_optimizers: list[str],
-) -> ModelSection:
+def _build_control_panel(
+        doc: Dict[str, Any],
+        available_llms: list[str],
+        available_diffusers: list[str],
+        available_optimizers: list[str],
+) -> ControlPanel:
     aspect_choices = get_supported_image_ratios()
-    with gr.Column(scale=2, min_width=320, variant="panel"):
-        gr.Markdown(f"### {doc.get('control_panel_title')}")
-        with gr.Accordion(doc.get("optimizer_section_title"), open=True):
-            llm = gr.Dropdown(
-                label=doc.get("parameter_llm_label"),
-                info=doc.get("parameter_llm_description"),
-                choices=available_llms,
-                value=_default_choice(available_llms),
-                multiselect=False,
-            )
-            prompting_rules = gr.Dropdown(
-                label=doc.get("parameter_rules_label"),
-                info=doc.get("parameter_rules_description"),
-                choices=available_optimizers,
-                value=_default_choice(available_optimizers),
-                multiselect=False,
-            )
-            llm_temperature = gr.Slider(
-                label=doc.get("parameter_llm_temperature_label"),
-                info=doc.get("parameter_llm_temperature_description"),
-                value=0.2,
-                minimum=0.0,
-                maximum=1.0,
-                step=0.05,
-            )
-            llm_seed = gr.Number(
-                label=doc.get("parameter_llm_seed_label"),
-                info=doc.get("parameter_llm_seed_description"),
-                value=-1,
-                minimum=-1,
-                maximum=1_000_000_000,
-                step=1,
-            )
-        with gr.Accordion(doc.get("diffuser_section_title"), open=True):
-            diffuser = gr.Dropdown(
-                label=doc.get("parameter_diffuser_label"),
-                info=doc.get("parameter_diffuser_description"),
-                choices=available_diffusers,
-                value=_default_choice(available_diffusers),
-                multiselect=False,
-            )
-            steps = gr.Slider(
-                label=doc.get("parameter_steps_label"),
-                info=doc.get("parameter_steps_description"),
-                minimum=1,
-                maximum=50,
-                value=25,
-                step=1,
-            )
-            guidance = gr.Slider(
-                label=doc.get("parameter_guidance_label"),
-                info=doc.get("parameter_guidance_description"),
-                minimum=1,
-                maximum=15,
-                value=7,
-                step=0.5,
-            )
-            diffuser_seed = gr.Number(
-                label=doc.get("parameter_seed_label"),
-                info=doc.get("parameter_seed_description"),
-                value=-1,
-                minimum=-1,
-                maximum=1_000_000_000,
-                step=1,
-            )
-        with gr.Accordion(doc.get("app_section_title"), open=True):
-            preview_frequency = gr.Slider(
-                label=doc.get("preview_frequency_label"),
-                info=doc.get("preview_frequency_info"),
-                minimum=0,
-                maximum=50,
-                value=doc.get("preview_frequency_default", 0),
-                step=1,
-            )
-            preview_method = gr.Radio(
-                label=doc.get("preview_method_label"),
-                info=doc.get("preview_method_info"),
-                choices=["fast", "medium", "full"],
-                value="fast",
-            )
-            aspect = gr.Dropdown(
-                label=doc.get("parameter_aspect_label"),
-                info=doc.get("parameter_aspect_description"),
-                choices=aspect_choices,
-                value=_default_choice(aspect_choices),
-            )
-    return ModelSection(
+    with gr.Column(min_width=0, scale=1):
+        with gr.Tabs():
+            with gr.Tab(doc.get("control").get("llm").get("title")):
+                doc_current = doc.get("control").get("llm")
+                if doc_current.get("tagline"):
+                    gr.Markdown(doc_current.get("tagline"))
+                llm = gr.Dropdown(
+                    label=doc_current.get("llm").get("label"),
+                    info=doc_current.get("llm").get("info"),
+                    choices=available_llms,
+                    value=_default_choice(available_llms),
+                    multiselect=False,
+                )
+                llm_temperature = gr.Slider(
+                    label=doc_current.get("temperature").get("label"),
+                    info=doc_current.get("temperature").get("info"),
+                    value=0.2,
+                    minimum=0.0,
+                    maximum=1.0,
+                    step=0.05,
+                )
+                llm_seed = gr.Number(
+                    label=doc_current.get("seed").get("label"),
+                    info=doc_current.get("seed").get("info"),
+                    value=-1,
+                    minimum=-1,
+                    maximum=1_000_000_000,
+                    step=1,
+                )
+            with gr.Tab(doc.get("control").get("diffuser").get("title")):
+                doc_current = doc.get("control").get("diffuser")
+                if doc_current.get("tagline"):
+                    gr.Markdown(doc_current.get("tagline"))
+                diffuser = gr.Dropdown(
+                    label=doc_current.get("diffuser").get("label"),
+                    info=doc_current.get("diffuser").get("info"),
+                    choices=available_diffusers,
+                    value=_default_choice(available_diffusers),
+                    multiselect=False,
+                )
+                steps = gr.Slider(
+                    label=doc_current.get("steps").get("label"),
+                    info=doc_current.get("steps").get("info"),
+                    minimum=1,
+                    maximum=50,
+                    value=28,
+                    step=1,
+                )
+                guidance = gr.Slider(
+                    label=doc_current.get("guidance").get("label"),
+                    info=doc_current.get("guidance").get("info"),
+                    minimum=1,
+                    maximum=15,
+                    value=5.0,
+                    step=0.1,
+                )
+                diffuser_seed = gr.Number(
+                    label=doc_current.get("seed").get("label"),
+                    info=doc_current.get("seed").get("info"),
+                    value=-1,
+                    minimum=-1,
+                    step=1,
+                )
+            with gr.Tab(doc.get("control").get("app").get("title")):
+                doc_current = doc.get("control").get("app")
+                if doc_current.get("tagline"):
+                    gr.Markdown(doc_current.get("tagline"))
+                aspect = gr.Dropdown(
+                    label=doc_current.get("aspect").get("label"),
+                    info=doc_current.get("aspect").get("info"),
+                    choices=aspect_choices,
+                    value=_default_choice(aspect_choices),
+                )
+                optimizer = gr.Dropdown(
+                    label=doc_current.get("optimizer").get("label"),
+                    info=doc_current.get("optimizer").get("info"),
+                    choices=available_optimizers,
+                    value=_default_choice(available_optimizers),
+                    multiselect=False,
+                )
+                preview_frequency = gr.Slider(
+                    label=doc_current.get("preview_frequency").get("label"),
+                    info=doc_current.get("preview_frequency").get("info"),
+                    minimum=0,
+                    maximum=50,
+                    value=0,
+                    step=1,
+                )
+                preview_method = gr.Radio(
+                    label=doc_current.get("preview_method").get("label"),
+                    info=doc_current.get("preview_method").get("info"),
+                    choices=["fast", "medium", "full"],
+                    value="fast",
+                )
+            with gr.Tab(doc.get("control").get("chatbot").get("title")):
+                doc_current = doc.get("control").get("chatbot")
+                if doc_current.get("tagline"):
+                    gr.Markdown(doc_current.get("tagline"))
+                chatbot = gr.Chatbot(
+                    label=doc_current.get("chatbot").get("label"),
+                    value=[],
+                    height=440,
+                    type="messages",
+                )
+                input_box = gr.Textbox(
+                    show_label=False,
+                    placeholder=doc_current.get("input").get("placeholder"),
+                    interactive=True,
+                    lines=1,
+                    scale=4,
+                )
+
+    return ControlPanel(
         llm=llm,
-        rules=prompting_rules,
-        temperature=llm_temperature,
-        seed=llm_seed,
+        llm_temperature=llm_temperature,
+        llm_seed=llm_seed,
         diffuser=diffuser,
-        steps=steps,
-        guidance=guidance,
+        diffuser_steps=steps,
+        diffuser_guidance=guidance,
         diffuser_seed=diffuser_seed,
+        aspect=aspect,
+        optimizer=optimizer,
         preview_frequency=preview_frequency,
         preview_method=preview_method,
-        aspect=aspect,
+        chatbot=chatbot,
+        chatbot_input=input_box,
     )
+
+
+def _dummy_chat_response(
+        history: list,
+        message: str,
+) -> tuple[list[dict], str]:
+    """Respond to the user with a canned affirmative message."""
+    if not message or not message.strip():
+        return history, ""
+    return history + [{"role": "user", "content": message}, {"role": "assistant", "content": "Yes!"}], ""
 
 
 def _default_choice(options: list[str]) -> Optional[str]:

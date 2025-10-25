@@ -31,4 +31,4 @@ directory = "./models/diffusers"
 # performing the prompt optimization step.
 # --------------------------------------------------------------------------------------------- #
 [prompting_rules]
-directory = "./data/prompting_rules"
+directory = "./data/optimizers"
