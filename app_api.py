@@ -106,69 +106,101 @@ def log(  # noqa: D401 - keep docstring short and focused
         raise gr.Error(message)
 
 
-def _notify_ui(message: str, severity: str, force: bool) -> None:
-    """Render a Gradio notification if needed."""
-    display_in_ui = force or severity in {"warning", "error"}
-    if not display_in_ui:
-        return
-
-    component_name = {
-        "info": "Info",
-        "warning": "Warning",
-    }.get(severity, "Info")
-
-    if severity == "error":
-        return
-
-    component = getattr(gr, component_name, None)
-    if component is not None:
-        component(message)  # type: ignore[callable-async]
-
-
-def optimize_prompt(
-        conversation: list[dict[str, str]],
-        llm: str,
+def generate_response(
+        history: Optional[list[dict[str, str]]],
+        message: str,
+        llm_name: Optional[str],
         llm_dir: str,
-        rules: str,
+        temperature: Optional[float],
+        seed: Optional[int | float],
+        optimizer_name: Optional[str],
         rules_dir: str,
-        *,
-        goal: Optional[str] = None,
-        temperature: float = 0.5,
-        seed: Optional[int] = None,
         creative_mode: bool = True,
-) -> str:
-    """Generate a single assistant response produced by the configured LLM."""
-    writer = MODELS.require_writer()
-    _load_writer_model(writer=writer, model_dir=llm_dir, model_name=llm)
-    rule_set = _load_prompting_rules(directory=rules_dir, rule_name=rules)
-    writer.configure_prompting(
-        rules=rule_set,
-        creative_mode=creative_mode,
-    )
+) -> tuple[list[dict[str, str]], str]:
+    """Return the updated chat history after generating an assistant reply.
 
-    response_text = writer.respond(
-        conversation,
-        temperature=float(temperature),
-        seed=seed,
-    )
+    Parameters
+    ----------
+    history
+        Existing chat messages exchanged between the user and the assistant.
+    message
+        Latest user input collected from the UI textbox.
+    llm_name
+        File name of the llama.cpp model selected in the UI.
+    llm_dir
+        Directory containing available llama.cpp models.
+    temperature
+        Sampling temperature selected by the user.
+    seed
+        Pseudo-random seed used to reproduce responses (-1 disables determinism).
+    optimizer_name
+        Name of the prompting rules file selected in the UI.
+    rules_dir
+        Directory containing prompting rule definitions.
+    creative_mode
+        Whether the assistant should invent missing details when generating prompts.
 
-    return response_text.strip()
+    Returns
+    -------
+    tuple[list[dict[str, str]], str]
+        Updated chat history and an empty string to clear the textbox.
+    """
+    if not message or not message.strip():
+        gr.Warning("Received empty message for assistant chat; no action taken.")
+        return history or [], ""
+    if not llm_name:
+        gr.Error("Select an LLM before requesting prompt help.")
+        return history or [], ""
+    if not optimizer_name:
+        gr.Error("Select a prompt optimizer to continue.")
+        return history or [], ""
 
-
-def _load_writer_model(writer: LLM, model_dir: str, model_name: str) -> None:
-    model_path = Path(model_dir) / model_name
+    # load model and rules
     try:
-        writer.load_model(filepath=str(model_path))
-    except Exception as error:  # pragma: no cover - surfaced to the UI
-        log(message=f"error (llm loading): {error}", message_type="error")
-
-
-def _load_prompting_rules(directory: str, rule_name: str) -> PromptingRules:
-    filepath = Path(directory) / rule_name
+        writer = MODELS.require_writer()
+        _load_writer_model(writer=writer, model_dir=llm_dir, model_name=llm_name)
+    except Exception:
+        logger.exception("LLM model loading failed")
+        gr.Error("Failed to load the selected LLM model; cannot proceed.")
+        return history or [], ""
     try:
-        return PromptingRules.from_toml(filepath=str(filepath))
-    except Exception as error:  # pragma: no cover - surfaced to the UI
-        log(message=f"error (rules loading): {error}", message_type="error")
+        rule_set = _load_prompting_rules(directory=rules_dir, rule_name=optimizer_name)
+        writer.configure_prompting(
+            rules=rule_set,
+            creative_mode=creative_mode,
+        )
+    except Exception:
+        logger.exception("Prompting rules loading failed")
+        gr.Error("Failed to load the selected prompting rules; cannot proceed.")
+        return history or [], ""
+
+    # normalize inference parameters
+    temperature_value = _normalize_temperature(temperature)
+    seed_value = _normalise_seed(seed)
+
+    # update conversation with user message
+    conversation: list[dict[str, str]] = list(history or [])
+    conversation.append({"role": "user", "content": message})
+
+    # perform inference
+    try:
+        response = writer.respond(
+            messages=conversation,
+            temperature=float(temperature_value),
+            seed=seed_value,
+        ).strip()
+    except Exception:
+        logger.exception("assistant prompt optimization failed")
+        gr.Error("Something went wrong during prompt optimization; no content produced.")
+        return conversation, ""
+
+    # update conversation with assistant response
+    if response:
+        conversation.append({"role": "assistant", "content": response})
+    else:
+        gr.Warning("No content produced by the assistant.")
+
+    return conversation, ""
 
 
 def generate_image(
@@ -182,60 +214,40 @@ def generate_image(
         preview_method: str = "fast",
         aspect: str = "square",
         seed: Optional[int] = -1,
-        progressbar: Optional[gr.Progress] = None,
 ) -> Iterator[Image.Image]:
     """Generate an image (and optional previews) using the configured diffusion pipeline."""
-    artist = MODELS.require_artist()
+    # load diffuser model
+    try:
+        artist = MODELS.require_artist()
+        _load_diffuser_model(artist=artist, model_dir=diffuser_dir, model_name=diffuser)
+    except Exception:
+        logger.exception("Diffuser model loading failed")
+        log(message="Failed to load the selected diffuser model; cannot proceed.", message_type="error")
+        return
 
+    # normalize inference parameters
     preview_frequency = _normalise_preview_frequency(preview_frequency)
     preview_method = _normalise_preview_method(preview_method)
-    seed_value = seed if seed is not None and seed >= 0 else None
+    seed_value = _normalise_seed(seed)
 
-    log(message="loading diffuser", progress=0.25, progressbar=progressbar)
-    _load_diffuser_model(artist=artist, model_dir=diffuser_dir, model_name=diffuser)
-    log(message="generating image", progress=0.75, progressbar=progressbar)
-
+    # perform inference
     try:
-        if preview_frequency > 0:
-            yield from _generate_image_with_previews(
-                artist=artist,
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                steps=steps,
-                guidance=guidance,
-                aspect=aspect,
-                seed=seed_value,
-                preview_frequency=preview_frequency,
-                preview_method=preview_method,
-                progressbar=progressbar,
-            )
-        else:
-            final_image = artist.imagine(
-                prompt=prompt,
-                negative_prompt=negative_prompt,
-                steps=steps,
-                guidance=guidance,
-                aspect=aspect,
-                seed=seed_value,
-                preview_method=preview_method,
-            )
-            log(message="done", progress=1.0, progressbar=progressbar)
-            yield final_image
+        yield from _generate_image_with_previews(
+            artist=artist,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            steps=steps,
+            guidance=guidance,
+            aspect=aspect,
+            seed=seed_value,
+            preview_frequency=preview_frequency,
+            preview_method=preview_method,
+        )
     except Exception as error:  # pragma: no cover - surfaced to the UI
         log(
             message=f"error (image generation): {error}",
             message_type="error",
-            progress=1.0,
-            progressbar=progressbar,
         )
-
-
-def _load_diffuser_model(artist: Diffuser, model_dir: str, model_name: str) -> None:
-    model_path = Path(model_dir) / model_name
-    try:
-        artist.load_model(filepath=str(model_path))
-    except Exception as error:  # pragma: no cover - surfaced to the UI
-        log(message=f"error (diffuser loading): {error}", message_type="error")
 
 
 def _generate_image_with_previews(
@@ -248,7 +260,6 @@ def _generate_image_with_previews(
         seed: Optional[int],
         preview_frequency: int,
         preview_method: str,
-        progressbar: Optional[gr.Progress],
 ) -> Iterator[Image.Image]:
     """Stream intermediate previews while the diffusion pipeline runs."""
     queue: Queue = Queue()
@@ -291,13 +302,45 @@ def _generate_image_with_previews(
                 log(
                     message=f"error (image generation): {worker_exception}",
                     message_type="error",
-                    progress=1.0,
-                    progressbar=progressbar,
                 )
         elif kind == "done":
             break
 
-    log(message="done", progress=1.0, progressbar=progressbar)
+    log(message="done")
+
+
+def _load_writer_model(writer: LLM, model_dir: str, model_name: str) -> None:
+    model_path = Path(model_dir) / model_name
+    try:
+        writer.load_model(filepath=str(model_path))
+    except Exception as error:  # pragma: no cover - surfaced to the UI
+        log(message=f"error (llm loading): {error}", message_type="error")
+
+
+def _load_prompting_rules(directory: str, rule_name: str) -> PromptingRules:
+    filepath = Path(directory) / rule_name
+    try:
+        return PromptingRules.from_toml(filepath=str(filepath))
+    except Exception as error:  # pragma: no cover - surfaced to the UI
+        log(message=f"error (rules loading): {error}", message_type="error")
+
+
+def _load_diffuser_model(artist: Diffuser, model_dir: str, model_name: str) -> None:
+    model_path = Path(model_dir) / model_name
+    try:
+        artist.load_model(filepath=str(model_path))
+    except Exception as error:  # pragma: no cover - surfaced to the UI
+        log(message=f"error (diffuser loading): {error}", message_type="error")
+
+
+def _normalise_seed(seed: Optional[int | float]) -> Optional[int]:
+    if seed is None:
+        return None
+    try:
+        candidate = int(seed)
+    except (TypeError, ValueError):
+        return None
+    return candidate if candidate >= 0 else None
 
 
 def _normalise_preview_frequency(value: int) -> int:
@@ -308,6 +351,14 @@ def _normalise_preview_frequency(value: int) -> int:
     return max(0, frequency)
 
 
+def _normalize_temperature(value: Optional[float]) -> float:
+    try:
+        temperature = float(value)
+    except (TypeError, ValueError):
+        return 0.5
+    return min(max(0.0, temperature), 1.0)
+
+
 def _normalise_preview_method(method: Optional[str]) -> str:
     if not method:
         return "fast"
@@ -316,3 +367,22 @@ def _normalise_preview_method(method: Optional[str]) -> str:
         log(message=f"unsupported preview method '{method}', defaulting to 'fast'", message_type="warning")
         return "fast"
     return method
+
+
+def _notify_ui(message: str, severity: str, force: bool) -> None:
+    """Render a Gradio notification if needed."""
+    display_in_ui = force or severity in {"warning", "error"}
+    if not display_in_ui:
+        return
+
+    component_name = {
+        "info": "Info",
+        "warning": "Warning",
+    }.get(severity, "Info")
+
+    if severity == "error":
+        return
+
+    component = getattr(gr, component_name, None)
+    if component is not None:
+        component(message)  # type: ignore[callable-async]

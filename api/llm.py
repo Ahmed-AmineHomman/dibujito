@@ -45,7 +45,6 @@ class LLM:
     def __init__(
             self,
             filepath: Optional[str] = None,
-            *,
             instructions: Optional[str] = None
     ) -> None:
         self._llm: Optional[Llama] = None
@@ -66,7 +65,6 @@ class LLM:
     def load_model(
             self,
             filepath: str,
-            *,
             context_length: Optional[int] = None
     ) -> None:
         """Load a llama.cpp-compatible model from ``filepath``."""
@@ -102,21 +100,32 @@ class LLM:
     def configure_prompting(
             self,
             rules: PromptingRules,
-            *,
             creative_mode: bool = True,
     ) -> None:
         """Prepare system instructions based on the provided prompting rules."""
-        instruction_block = self._build_instruction_block(creative_mode=creative_mode)
-        system_prompt = self._build_system_prompt(
-            rules=rules,
-            instructions=instruction_block,
+        creative_instructions = (
+            self
+            ._build_creative_instructions(creative_mode=creative_mode)
+            .replace("\n", " ")
         )
-        self.set_instructions(system_prompt)
+        examples = (
+            "\n".join(f"- {example}" for example in rules.examples)
+            if rules.examples else "No examples provided."
+        )
+        instructions = (
+            CHAT_SYSTEM_PROMPT
+            .format(
+                rules=rules.rules.strip(),
+                examples=examples.strip(),
+                creative_instruction=creative_instructions.strip(),
+            )
+            .strip()
+        )
+        self.set_instructions(instructions)
 
     def respond(
             self,
             messages: Sequence[MessageLike],
-            *,
             temperature: float = 0.2,
             seed: Optional[int] = None,
     ) -> str:
@@ -152,8 +161,8 @@ class LLM:
         content = message.get("content", "")
         return content or ""
 
+    @staticmethod
     def _prepare_messages(
-            self,
             messages: Sequence[MessageLike]
     ) -> List[Dict[str, str]]:
         prepared: List[Dict[str, str]] = []
@@ -179,8 +188,8 @@ class LLM:
 
         return prepared
 
-    def _build_instruction_block(
-            self,
+    @staticmethod
+    def _build_creative_instructions(
             creative_mode: bool
     ) -> str:
         if not creative_mode:
@@ -194,26 +203,8 @@ class LLM:
             "When the user description lacks details, invent coherent additions that align with the stated goal."
         )
 
-    def _build_system_prompt(
-            self,
-            rules: PromptingRules,
-            instructions: str,
-    ) -> str:
-        examples = "\n".join(
-            f"- {example}" for example in rules.examples) if rules.examples else "No examples provided."
-        prefix = rules.prefix if rules.prefix else "[none]"
-        suffix = rules.suffix if rules.suffix else "[none]"
-        creative_instruction = instructions.replace("\n", " ")
-        return CHAT_SYSTEM_PROMPT.format(
-            rules=rules.rules.strip(),
-            examples=examples.strip(),
-            prefix=prefix.strip(),
-            suffix=suffix.strip(),
-            creative_instruction=creative_instruction.strip(),
-        )
-
+    @staticmethod
     def _normalise_seed(
-            self,
             seed: Optional[int | float]
     ) -> Optional[int]:
         if seed is None:
@@ -224,8 +215,8 @@ class LLM:
             return None
         return candidate if candidate >= 0 else None
 
+    @staticmethod
     def _validate_model_path(
-            self,
             filepath: str
     ) -> Path:
         path = Path(filepath)

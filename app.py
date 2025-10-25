@@ -11,7 +11,7 @@ import gradio as gr
 from click import MissingParameter
 
 from api import Diffuser, LLM, get_supported_image_ratios
-from app_api import generate_image, get_model_list, load_model, optimize_prompt
+from app_api import generate_image, get_model_list, load_model, generate_response
 
 LANGUAGES = ("en",)
 DEFAULT_LANGUAGE = "en"
@@ -105,7 +105,7 @@ def build_ui(
             outputs=[generation_panel.image],
         )
         control_panel.chatbot_input.submit(
-            fn=_assistant_chat_response,
+            fn=generate_response,
             inputs=[
                 control_panel.chatbot,
                 control_panel.chatbot_input,
@@ -166,6 +166,54 @@ def _build_control_panel(
     aspect_choices = get_supported_image_ratios()
     with gr.Column(min_width=0, scale=1):
         with gr.Tabs():
+            with gr.Tab(doc.get("control").get("chatbot").get("title")):
+                doc_current = doc.get("control").get("chatbot")
+                if doc_current.get("tagline"):
+                    gr.Markdown(doc_current.get("tagline"))
+                chatbot = gr.Chatbot(
+                    label=doc_current.get("chatbot").get("label"),
+                    value=[],
+                    height=440,
+                    type="messages",
+                )
+                input_box = gr.Textbox(
+                    show_label=False,
+                    placeholder=doc_current.get("input").get("placeholder"),
+                    interactive=True,
+                    lines=1,
+                    scale=4,
+                )
+            with gr.Tab(doc.get("control").get("app").get("title")):
+                doc_current = doc.get("control").get("app")
+                if doc_current.get("tagline"):
+                    gr.Markdown(doc_current.get("tagline"))
+                aspect = gr.Dropdown(
+                    label=doc_current.get("aspect").get("label"),
+                    info=doc_current.get("aspect").get("info"),
+                    choices=aspect_choices,
+                    value=_default_choice(aspect_choices),
+                )
+                optimizer = gr.Dropdown(
+                    label=doc_current.get("optimizer").get("label"),
+                    info=doc_current.get("optimizer").get("info"),
+                    choices=available_optimizers,
+                    value=_default_choice(available_optimizers),
+                    multiselect=False,
+                )
+                preview_frequency = gr.Slider(
+                    label=doc_current.get("preview_frequency").get("label"),
+                    info=doc_current.get("preview_frequency").get("info"),
+                    minimum=0,
+                    maximum=50,
+                    value=5,
+                    step=1,
+                )
+                preview_method = gr.Radio(
+                    label=doc_current.get("preview_method").get("label"),
+                    info=doc_current.get("preview_method").get("info"),
+                    choices=["fast", "medium", "full"],
+                    value="fast",
+                )
             with gr.Tab(doc.get("control").get("llm").get("title")):
                 doc_current = doc.get("control").get("llm")
                 if doc_current.get("tagline"):
@@ -180,7 +228,7 @@ def _build_control_panel(
                 llm_temperature = gr.Slider(
                     label=doc_current.get("temperature").get("label"),
                     info=doc_current.get("temperature").get("info"),
-                    value=0.2,
+                    value=0.5,
                     minimum=0.0,
                     maximum=1.0,
                     step=0.05,
@@ -227,54 +275,6 @@ def _build_control_panel(
                     minimum=-1,
                     step=1,
                 )
-            with gr.Tab(doc.get("control").get("app").get("title")):
-                doc_current = doc.get("control").get("app")
-                if doc_current.get("tagline"):
-                    gr.Markdown(doc_current.get("tagline"))
-                aspect = gr.Dropdown(
-                    label=doc_current.get("aspect").get("label"),
-                    info=doc_current.get("aspect").get("info"),
-                    choices=aspect_choices,
-                    value=_default_choice(aspect_choices),
-                )
-                optimizer = gr.Dropdown(
-                    label=doc_current.get("optimizer").get("label"),
-                    info=doc_current.get("optimizer").get("info"),
-                    choices=available_optimizers,
-                    value=_default_choice(available_optimizers),
-                    multiselect=False,
-                )
-                preview_frequency = gr.Slider(
-                    label=doc_current.get("preview_frequency").get("label"),
-                    info=doc_current.get("preview_frequency").get("info"),
-                    minimum=0,
-                    maximum=50,
-                    value=0,
-                    step=1,
-                )
-                preview_method = gr.Radio(
-                    label=doc_current.get("preview_method").get("label"),
-                    info=doc_current.get("preview_method").get("info"),
-                    choices=["fast", "medium", "full"],
-                    value="fast",
-                )
-            with gr.Tab(doc.get("control").get("chatbot").get("title")):
-                doc_current = doc.get("control").get("chatbot")
-                if doc_current.get("tagline"):
-                    gr.Markdown(doc_current.get("tagline"))
-                chatbot = gr.Chatbot(
-                    label=doc_current.get("chatbot").get("label"),
-                    value=[],
-                    height=440,
-                    type="messages",
-                )
-                input_box = gr.Textbox(
-                    show_label=False,
-                    placeholder=doc_current.get("input").get("placeholder"),
-                    interactive=True,
-                    lines=1,
-                    scale=4,
-                )
 
     return ControlPanel(
         llm=llm,
@@ -291,56 +291,6 @@ def _build_control_panel(
         chatbot=chatbot,
         chatbot_input=input_box,
     )
-
-
-def _assistant_chat_response(
-        history: list[dict[str, str]] | None,
-        message: str,
-        llm_name: Optional[str],
-        llm_dir: str,
-        temperature: Optional[float],
-        seed: Optional[float],
-        optimizer_name: Optional[str],
-        rules_dir: str,
-) -> tuple[list[dict[str, str]], str]:
-    """Generate a conversational response containing an optimised prompt suggestion."""
-    if not message or not message.strip():
-        gr.Warning("Received empty message for assistant chat; no action taken.")
-        return history or [], ""
-    if not llm_name:
-        gr.Error("Select an LLM before requesting prompt help.")
-        return history or [], ""
-    if not optimizer_name:
-        gr.Error("Select a prompt optimizer to continue.")
-        return history or [], ""
-
-    temperature_value = float(temperature) if temperature is not None else 0.5
-
-    conversation: list[dict[str, str]] = list(history or [])
-    conversation.append({"role": "user", "content": message})
-
-    try:
-        response = optimize_prompt(
-            conversation=conversation,
-            llm=llm_name,
-            llm_dir=llm_dir,
-            rules=optimizer_name,
-            rules_dir=rules_dir,
-            temperature=temperature_value,
-            seed=seed,
-            creative_mode=True,
-        )
-    except Exception:
-        logging.exception("assistant prompt optimization failed")
-        gr.Error("Something went wrong during prompt optimization; no content produced.")
-        return conversation, ""
-
-    if response:
-        conversation.append({"role": "assistant", "content": response})
-    else:
-        gr.Warning("No content produced by the assistant.")
-
-    return conversation, ""
 
 
 def _default_choice(options: list[str]) -> Optional[str]:
