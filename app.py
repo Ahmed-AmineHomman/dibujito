@@ -64,6 +64,13 @@ def parse_cli_args() -> Namespace:
         type=str,
         help="Optional path to a log file. Defaults to stderr.",
     )
+    parser.add_argument(
+        "--verbose-level",
+        type=int,
+        choices=(0, 1),
+        default=0,
+        help="Verbosity level: 0 shows app logs only, 1 also surfaces llama.cpp logs.",
+    )
     return parser.parse_args()
 
 
@@ -422,6 +429,9 @@ def main() -> None:
     parameters = parse_cli_args()
     configure_logger(parameters.logpath)
 
+    llama_verbose = parameters.verbose_level >= 1
+    logging.info("llama.cpp verbose logging %s", "enabled" if llama_verbose else "disabled")
+
     logging.info("loading UI locale")
     doc = load_ui_copy(language=parameters.language)
 
@@ -429,7 +439,7 @@ def main() -> None:
     config = load_configuration()
 
     logging.info("loading models")
-    load_model(llm=LLM(), diffuser=Diffuser())
+    load_model(llm=LLM(llama_verbose=llama_verbose), diffuser=Diffuser())
 
     logging.info("building UI")
     app = build_ui(

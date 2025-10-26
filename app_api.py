@@ -295,6 +295,7 @@ def generate_response(
             temperature=float(temperature_value),
             seed=seed_value,
             stream=True,
+            agent_mode=True,
         )
         if isinstance(response_stream, str):
             assistant_reply = response_stream.strip()
